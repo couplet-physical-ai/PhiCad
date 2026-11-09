@@ -50,7 +50,7 @@ from typing import Optional
 
 ALLOWED_PREFIXES = ("phicad/",)
 ALLOWED_FILES = frozenset({
-    ".github/workflows/phicad-check.yml",
+    ".woodpecker/ci.yaml",
     "AGENTS.md",
     "pyproject.toml",
 })
@@ -233,7 +233,7 @@ def main() -> int:
         print("fork boundary: forbidden path change(s):")
         for line in forbidden:
             print(line)
-        print("allowed: phicad/**, AGENTS.md, pyproject.toml, .github/workflows/phicad-check.yml")
+        print("allowed: phicad/**, AGENTS.md, pyproject.toml, .woodpecker/ci.yaml")
         print("move fork-only work under phicad/; upstream synchronization is a separate workflow")
         return 1
 
