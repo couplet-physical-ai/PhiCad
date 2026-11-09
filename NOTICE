@@ -1,5 +1,5 @@
 PhiCad
-Copyright 2026 Exowatt, Inc.
+Copyright {{YEAR}} Exowatt, Inc.
 
 PhiCad was created at Exowatt, Inc. (https://exowatt.com). It is a fork of
 KiCad (https://www.kicad.org, source https://gitlab.com/kicad/code/kicad).
@@ -34,10 +34,9 @@ repository's distribution terms: qa/data/pcbnew/plugins/easyeda/ (EasyEDA Std
 import fixtures), demos/stickhub/, qa/data/pcbnew/issue6284.kicad_pcb and the
 polygon fixtures derived from those boards.
 
-PhiCad artwork: the PhiCad mark (phicad/resources/branding/mark.png and
-phicad-mark.svg) and the application/document icons generated from it are
-Copyright Exowatt, Inc., distributed under the same terms as the rest of the
-tree. All other bitmaps are the upstream KiCad artwork (CC BY-SA 4.0, see
+PhiCad artwork: the PhiCad mark (phicad/resources/branding/phicad-mark.svg,
+phicad/resources/branding/mark.png and icons generated from it) © 2026 Exowatt,
+Inc., licensed CC BY 4.0. It is not a trademark grant. All other bitmaps are the upstream KiCad artwork (CC BY-SA 4.0, see
 resources/bitmaps_png/sources/CREDITS).
 
 Vendored in the phicad/ layer: Google model-viewer 4.3.1
