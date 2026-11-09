@@ -19,14 +19,15 @@ steps:
   # the last command proves the suites left demos/ byte-identical.
   - name: fork-layer
     image: bash
+    depends_on: []
     environment:
       OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://192.0.2.1:4318/v1/logs
       OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: http/protobuf
     commands:
       - >-
         ci-runner v0.10.1 python-plain --src=. --repo="$${CI_REPO_NAME,,}" --python=3.13
-        --pip=jsonschema --pip=ruff==0.16.6 --git-index
-        --run='phicad/bin/phicad check fast
+        --pip=jsonschema --pip=ruff==0.16.6 --git-index --apt=gawk,libtk8.6
+        --run='git status --porcelain >/dev/null && phicad/bin/phicad check fast
         && PYTHONPATH=phicad/plugins/ai-view python -m unittest discover -s phicad/plugins/ai-view -p "test_*.py" -v
         && python phicad/bin/check_schemas.py
         && ruff check --no-cache .
@@ -38,6 +39,7 @@ steps:
   # PHICAD_BUILD points at a directory that does not exist, as in the original gate.
   - name: mcp-registry
     image: bash
+    depends_on: []
     environment:
       OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://192.0.2.1:4318/v1/logs
       OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: http/protobuf
@@ -56,6 +58,7 @@ steps:
   # /usr/bin/python3 is 3.9). Only phicad/ is uploaded.
   - name: python39-boundary
     image: bash
+    depends_on: []
     environment:
       OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://192.0.2.1:4318/v1/logs
       OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: http/protobuf
@@ -73,6 +76,7 @@ steps:
   # credential. Only phicad/ is uploaded and placed at <repo>/phicad for the script.
   - name: fork-boundary
     image: bash
+    depends_on: []
     when:
       - event: pull_request
     environment:
