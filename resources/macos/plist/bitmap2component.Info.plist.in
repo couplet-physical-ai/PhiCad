@@ -7,17 +7,18 @@
     <key>CFBundleExecutable</key>             <string>bitmap2component</string>
     <key>CFBundleGetInfoString</key>          <string></string>
     <key>CFBundleIconFile</key>               <string>bitmap2component.icns</string>
-    <key>CFBundleIdentifier</key>             <string>org.kicad.bitmap2component</string>
+    <key>CFBundleIdentifier</key>             <string>io.github.couplet-physical-ai.phicad.bitmap2component</string>
     <key>CFBundleInfoDictionaryVersion</key>  <string>6.0</string>
     <key>CFBundleLongVersionString</key>      <string>@KICAD_VERSION_FULL@</string>
-    <key>CFBundleName</key>                   <string>Image Converter</string>
+    <key>CFBundleName</key>                   <string>PhiCad Image Converter</string>
+    <key>CFBundleDisplayName</key>            <string>PhiCad Image Converter</string>
     <key>CFBundlePackageType</key>            <string>APPL</string>
     <key>CFBundleShortVersionString</key>     <string>@KICAD_VERSION@</string>
     <key>CFBundleSignature</key>              <string>????</string>
     <key>CFBundleVersion</key>                <string>@KICAD_VERSION_FULL@</string>
     <key>CSResourcesFileMapped</key>          <true/>
     <key>LSRequiresCarbon</key>               <true/>
-    <key>NSHumanReadableCopyright</key>       <string>Copyright The KiCad Developers</string>
+    <key>NSHumanReadableCopyright</key>       <string>Copyright The KiCad Developers and PhiCad contributors</string>
     <key>NSHighResolutionCapable</key>        <true/>
 </dict>
 </plist>

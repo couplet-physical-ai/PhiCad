@@ -13,7 +13,7 @@
                     <string>brd</string>
                 </array>
 
-            <key>CFBundleTypeName</key>         <string>KiCad PCB document</string>
+            <key>CFBundleTypeName</key>         <string>PhiCad PCB document</string>
             <key>LSHandlerRank</key>            <string>Owner</string>
         </dict>
         <dict>
@@ -23,7 +23,7 @@
                     <string>kicad_mod</string>
                 </array>
             <key>CFBundleTypeIconFile</key>     <string>fpedit_doc.icns</string>
-            <key>CFBundleTypeName</key>         <string>KiCad footprint</string>
+            <key>CFBundleTypeName</key>         <string>PhiCad footprint</string>
             <key>LSHandlerRank</key>            <string>None</string>
         </dict>
         <dict>
@@ -32,7 +32,7 @@
                 <array>
                     <string>kicad_dru</string>
                 </array>
-            <key>CFBundleTypeName</key>         <string>KiCad custom design rules</string>
+            <key>CFBundleTypeName</key>         <string>PhiCad custom design rules</string>
             <key>LSHandlerRank</key>            <string>None</string>
         </dict>
     </array>
@@ -40,17 +40,18 @@
     <key>CFBundleExecutable</key>               <string>pcbnew</string>
     <key>CFBundleGetInfoString</key>            <string></string>
     <key>CFBundleIconFile</key>                 <string>pcbnew.icns</string>
-    <key>CFBundleIdentifier</key>               <string>org.kicad.pcbnew</string>
+    <key>CFBundleIdentifier</key>               <string>io.github.couplet-physical-ai.phicad.pcbnew</string>
     <key>CFBundleInfoDictionaryVersion</key>    <string>6.0</string>
     <key>CFBundleLongVersionString</key>        <string>@KICAD_VERSION_FULL@</string>
-    <key>CFBundleName</key>                     <string>PCB Editor</string>
+    <key>CFBundleName</key>                     <string>PhiCad PCB Editor</string>
+    <key>CFBundleDisplayName</key>              <string>PhiCad PCB Editor</string>
     <key>CFBundlePackageType</key>              <string>APPL</string>
     <key>CFBundleShortVersionString</key>       <string>@KICAD_VERSION@</string>
     <key>CFBundleSignature</key>                <string>????</string>
     <key>CFBundleVersion</key>                  <string>@KICAD_VERSION_FULL@</string>
     <key>CSResourcesFileMapped</key>            <true/>
     <key>LSRequiresCarbon</key>                 <true/>
-    <key>NSHumanReadableCopyright</key>         <string>Copyright The KiCad Developers</string>
+    <key>NSHumanReadableCopyright</key>         <string>Copyright The KiCad Developers and PhiCad contributors</string>
     <key>NSHighResolutionCapable</key>          <true/>
 </dict>
 </plist>

@@ -7,3 +7,9 @@ KiCad icons were redesigned in 2020 by Aleksandr Zyrianov
 KiCad nightly icon reworked by Rafael Silva based on the 2020 redesign
 
 License: CC-BY-SA 4.0
+PhiCad fork note:
+The application/tool brand icon families (icon_kicad*, icon_<tool>*,
+project_kicad*, the .ico/.xpm marks in icons/, and the platform app icons)
+were replaced in this fork by generated PhiCad identity art (the PhiCad mark,
+phicad/resources/branding/mark.png, composed by compose.py / regen-icons.py).
+All other bitmaps remain the upstream KiCad artwork credited above.

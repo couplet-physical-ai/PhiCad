@@ -4,14 +4,14 @@
 <component type="desktop-application">
     <id>@KICAD_APP_NAME@</id>
 
-    <name>KiCad</name>
+    <name>PhiCad</name>
 
     <launchable type="desktop-id">@KICAD_APP_NAME@.desktop</launchable>
 
     <project_license>GPL-3.0-or-later</project_license>
     <metadata_license>CC-BY-SA-4.0</metadata_license>
 
-    <summary>An EDA suite for schematic and circuit board design</summary>
+    <summary>A KiCad-based EDA suite for schematic and circuit board design</summary>
 
     <provides>
         <binary>kicad</binary>
@@ -31,7 +31,7 @@
     <translation type="gettext">kicad</translation>
 
     <keywords>
-        <keyword translate="no">KiCad</keyword>
+        <keyword translate="no">PhiCad</keyword>
         <keyword>EDA</keyword>
         <keyword>PCB</keyword>
         <keyword>Schematic</keyword>
@@ -48,7 +48,7 @@
 
     <description>
         <p>
-        KiCad is a free and open-source electronics design automation (EDA) suite. It features schematic capture, integrated circuit simulation, printed circuit board (PCB) layout, 3D rendering, and plotting/data export to numerous formats. KiCad also includes a high-quality component library featuring thousands of symbols, footprints, and 3D models. KiCad has minimal system requirements and runs on Linux, Windows, and macOS.
+        PhiCad is a fork of KiCad, the free and open-source electronics design automation (EDA) suite. It features schematic capture, integrated circuit simulation, printed circuit board (PCB) layout, 3D rendering, and plotting/data export to numerous formats. PhiCad also includes a high-quality component library featuring thousands of symbols, footprints, and 3D models. PhiCad has minimal system requirements and runs on Linux, Windows, and macOS.
         </p>
     </description>
 
@@ -69,17 +69,16 @@
         </screenshot>
     </screenshots>
 
-    <url type="homepage">https://www.kicad.org/</url>
-    <url type="bugtracker">https://go.kicad.org/issue</url>
+    <url type="homepage">https://github.com/couplet-physical-ai/PhiCad</url>
+    <url type="bugtracker">https://github.com/couplet-physical-ai/PhiCad/issues</url>
     <url type="help">https://go.kicad.org/docs/9</url>
     <url type="donation">https://go.kicad.org/donate</url>
     <url type="translate">https://go.kicad.org/translate</url>
     <url type="contribute">https://go.kicad.org/contribute</url>
-    <url type="vcs-browser">https://gitlab.com/kicad/code/kicad</url>
+    <url type="vcs-browser">https://github.com/couplet-physical-ai/PhiCad</url>
 
-    <update_contact>devlist@kicad.org</update_contact>
 
-    <developer_name>The KiCad Developers</developer_name>
+    <developer_name>PhiCad contributors</developer_name>
 
 
     <!-- This is actually a valid tag, but the utilities don't think so -->
