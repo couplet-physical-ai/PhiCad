@@ -1,0 +1,367 @@
+/*
+ * PhiCad documentation feedback control and dialog.
+ * Copyright (C) 2026 Exowatt, Inc.
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
+:root {
+    --phicad-feedback-ink: #0b0909;
+    --phicad-feedback-paper: #f7f7f5;
+    --phicad-feedback-muted: #525866;
+    --phicad-feedback-border: #c8cbd0;
+    --phicad-feedback-action: #b00000;
+    --phicad-feedback-action-hover: #850000;
+    --phicad-feedback-focus: #005fcc;
+    --phicad-feedback-error: #a40020;
+}
+
+#phicad-feedback-control,
+#phicad-feedback-dialog {
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+#phicad-feedback-control {
+    position: fixed;
+    z-index: 1000;
+    inset-inline-end: 1rem;
+    inset-block-end: 1rem;
+    min-block-size: 2.875rem;
+    padding: 0.7rem 1rem;
+    border: 1px solid var(--phicad-feedback-ink);
+    border-radius: 999px;
+    background: var(--phicad-feedback-paper);
+    color: var(--phicad-feedback-ink);
+    box-shadow: 0 0.35rem 1rem rgb(11 9 9 / 22%);
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 750;
+    line-height: 1;
+}
+
+#phicad-feedback-control:hover {
+    background: #ffffff;
+}
+
+#phicad-feedback-dialog {
+    box-sizing: border-box;
+    width: min(44rem, calc(100vw - 2rem));
+    max-width: 44rem;
+    max-height: min(90vh, 56rem);
+    margin: auto;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--phicad-feedback-border);
+    border-radius: 0.9rem;
+    background: var(--phicad-feedback-paper);
+    color: var(--phicad-feedback-ink);
+    box-shadow: 0 1.5rem 4rem rgb(11 9 9 / 32%);
+}
+
+#phicad-feedback-dialog::backdrop {
+    background: rgb(11 9 9 / 64%);
+}
+
+#phicad-feedback-dialog.phicad-feedback-dialog--fallback {
+    position: fixed;
+    inset: 5vh 0 auto;
+}
+
+.phicad-feedback-shell {
+    max-height: min(90vh, 56rem);
+    overflow-y: auto;
+}
+
+.phicad-feedback-header {
+    position: relative;
+    padding: 1.5rem 4rem 1.25rem 1.5rem;
+    border-block-end: 1px solid var(--phicad-feedback-border);
+    background: #ffffff;
+}
+
+.phicad-feedback-kicker {
+    margin: 0 0 0.35rem;
+    color: var(--phicad-feedback-action);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.09em;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
+#phicad-feedback-title {
+    margin: 0;
+    font-size: clamp(1.35rem, 4vw, 1.8rem);
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+}
+
+#phicad-feedback-description {
+    max-width: 42rem;
+    margin: 0.65rem 0 0;
+    color: var(--phicad-feedback-muted);
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.phicad-feedback-close {
+    position: absolute;
+    inset-block-start: 1rem;
+    inset-inline-end: 1rem;
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 1px solid transparent;
+    border-radius: 0.4rem;
+    background: transparent;
+    color: var(--phicad-feedback-ink);
+    cursor: pointer;
+    font-size: 1.7rem;
+    line-height: 1;
+}
+
+.phicad-feedback-form {
+    padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.phicad-feedback-form fieldset {
+    min-inline-size: 0;
+    margin: 1.1rem 0 0;
+    padding: 0;
+    border: 0;
+}
+
+.phicad-feedback-form legend {
+    margin-block-end: 0.8rem;
+    font-size: 1.05rem;
+    font-weight: 750;
+}
+
+.phicad-feedback-field {
+    margin-block-end: 1rem;
+}
+
+.phicad-feedback-field label {
+    display: block;
+    margin-block-end: 0.35rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.phicad-feedback-optional {
+    color: var(--phicad-feedback-muted);
+    font-size: 0.78rem;
+    font-weight: 500;
+}
+
+.phicad-feedback-field input,
+.phicad-feedback-field select,
+.phicad-feedback-field textarea {
+    box-sizing: border-box;
+    width: 100%;
+    border: 1px solid #70757d;
+    border-radius: 0.35rem;
+    background: #ffffff;
+    color: var(--phicad-feedback-ink);
+    font: inherit;
+    font-size: 0.95rem;
+    line-height: 1.4;
+}
+
+.phicad-feedback-field input,
+.phicad-feedback-field select {
+    min-height: 2.75rem;
+    padding: 0.55rem 0.7rem;
+}
+
+.phicad-feedback-field textarea {
+    display: block;
+    min-height: 5rem;
+    padding: 0.6rem 0.7rem;
+    resize: vertical;
+}
+
+.phicad-feedback-field input[readonly] {
+    background: #ececea;
+    color: var(--phicad-feedback-muted);
+}
+
+.phicad-feedback-help {
+    margin: 0.3rem 0 0;
+    color: var(--phicad-feedback-muted);
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+
+.phicad-feedback-intro {
+    margin-block: -0.2rem 1rem;
+}
+
+.phicad-feedback-two-column {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.phicad-feedback-privacy {
+    margin-block-start: 1.25rem;
+    padding: 1rem;
+    border: 1px solid var(--phicad-feedback-border);
+    border-radius: 0.5rem;
+    background: #ffffff;
+}
+
+.phicad-feedback-privacy h3 {
+    margin: 0 0 0.4rem;
+    font-size: 0.95rem;
+}
+
+.phicad-feedback-privacy p {
+    margin: 0.35rem 0 0;
+    color: var(--phicad-feedback-muted);
+    font-size: 0.82rem;
+    line-height: 1.45;
+}
+
+.phicad-feedback-privacy a {
+    color: #004c99;
+    font-weight: 700;
+    text-decoration: underline;
+    text-decoration-thickness: 0.1em;
+    text-underline-offset: 0.15em;
+}
+
+.phicad-feedback-consent {
+    display: flex;
+    gap: 0.65rem;
+    align-items: flex-start;
+    margin-block-start: 1rem;
+    color: var(--phicad-feedback-ink);
+    font-size: 0.85rem;
+    line-height: 1.45;
+}
+
+.phicad-feedback-consent input {
+    flex: 0 0 auto;
+    width: 1.15rem;
+    height: 1.15rem;
+    margin: 0.1rem 0 0;
+    accent-color: var(--phicad-feedback-action);
+}
+
+.phicad-feedback-error {
+    margin: 1rem 0 0;
+    padding: 0.7rem 0.8rem;
+    border-inline-start: 0.25rem solid var(--phicad-feedback-error);
+    background: #fff0f2;
+    color: var(--phicad-feedback-error);
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+
+.phicad-feedback-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.7rem;
+    margin-block-start: 1.35rem;
+}
+
+.phicad-feedback-button {
+    min-height: 2.75rem;
+    padding: 0.65rem 1rem;
+    border: 1px solid transparent;
+    border-radius: 0.35rem;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 750;
+}
+
+.phicad-feedback-button--primary {
+    background: var(--phicad-feedback-action);
+    color: #ffffff;
+}
+
+.phicad-feedback-button--primary:hover {
+    background: var(--phicad-feedback-action-hover);
+}
+
+.phicad-feedback-button--secondary {
+    border-color: var(--phicad-feedback-ink);
+    background: #ffffff;
+    color: var(--phicad-feedback-ink);
+}
+
+#phicad-feedback-control:focus-visible,
+#phicad-feedback-dialog :focus-visible {
+    outline: 3px solid var(--phicad-feedback-focus);
+    outline-offset: 3px;
+}
+
+#phicad-feedback-dialog :disabled {
+    cursor: not-allowed;
+}
+
+@media (max-width: 42rem) {
+    #phicad-feedback-control {
+        inset-inline-end: 0.75rem;
+        inset-block-end: 0.75rem;
+    }
+
+    #phicad-feedback-dialog {
+        width: calc(100vw - 1rem);
+        max-height: calc(100vh - 1rem);
+        border-radius: 0.65rem;
+    }
+
+    .phicad-feedback-shell {
+        max-height: calc(100vh - 1rem);
+    }
+
+    .phicad-feedback-header {
+        padding: 1.2rem 3.7rem 1rem 1rem;
+    }
+
+    .phicad-feedback-form {
+        padding: 1rem;
+    }
+
+    .phicad-feedback-two-column {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+
+    .phicad-feedback-actions {
+        flex-direction: column-reverse;
+    }
+
+    .phicad-feedback-button {
+        width: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #phicad-feedback-control,
+    #phicad-feedback-dialog,
+    #phicad-feedback-dialog * {
+        scroll-behavior: auto;
+        transition: none;
+        animation: none;
+    }
+}
+
+@media (forced-colors: active) {
+    #phicad-feedback-control,
+    #phicad-feedback-dialog,
+    .phicad-feedback-field input,
+    .phicad-feedback-field select,
+    .phicad-feedback-field textarea,
+    .phicad-feedback-button {
+        border: 1px solid ButtonText;
+    }
+
+    .phicad-feedback-button--primary {
+        background: ButtonText;
+        color: ButtonFace;
+    }
+}

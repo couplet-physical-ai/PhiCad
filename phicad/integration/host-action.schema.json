@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://couplet-physical-ai.github.io/PhiCad/schemas/host-action.v1.json",
+  "title": "PhiCad host action v1",
+  "description": "Idempotent command envelope submitted by a PhiCad host application.",
+  "oneOf": [
+    {"$ref": "#/$defs/session_start"},
+    {"$ref": "#/$defs/intent_submit"},
+    {"$ref": "#/$defs/design_review"},
+    {"$ref": "#/$defs/design_approve"},
+    {"$ref": "#/$defs/build_start"},
+    {"$ref": "#/$defs/build_cancel"},
+    {"$ref": "#/$defs/project_open"},
+    {"$ref": "#/$defs/session_close"}
+  ],
+  "$defs": {
+    "request_id": {"type": "string", "format": "uuid"},
+    "session_id": {"type": "string", "format": "uuid"},
+    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "empty_payload": {"type": "object", "additionalProperties": false},
+    "session_start": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "request_id", "session_id", "action", "payload"],
+      "properties": {
+        "schema": {"const": "phicad.host-action/v1"},
+        "request_id": {"$ref": "#/$defs/request_id"},
+        "session_id": {"$ref": "#/$defs/session_id"},
+        "action": {"const": "session.start"},
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["workspace_root"],
+          "properties": {
+            "workspace_root": {"type": "string", "minLength": 1},
+            "project_path": {"type": ["string", "null"]},
+            "intent": {"type": ["string", "null"]}
+          }
+        }
+      }
+    },
+    "intent_submit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "request_id", "session_id", "action", "payload"],
+      "properties": {
+        "schema": {"const": "phicad.host-action/v1"},
+        "request_id": {"$ref": "#/$defs/request_id"},
+        "session_id": {"$ref": "#/$defs/session_id"},
+        "action": {"const": "intent.submit"},
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["text"],
+          "properties": {"text": {"type": "string", "minLength": 1}}
+        }
+      }
+    },
+    "design_review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "request_id", "session_id", "action", "payload"],
+      "properties": {
+        "schema": {"const": "phicad.host-action/v1"},
+        "request_id": {"$ref": "#/$defs/request_id"},
+        "session_id": {"$ref": "#/$defs/session_id"},
+        "action": {"const": "design.review"},
+        "payload": {"$ref": "#/$defs/empty_payload"}
+      }
+    },
+    "design_approve": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "request_id", "session_id", "action", "payload"],
+      "properties": {
+        "schema": {"const": "phicad.host-action/v1"},
+        "request_id": {"$ref": "#/$defs/request_id"},
+        "session_id": {"$ref": "#/$defs/session_id"},
+        "action": {"const": "design.approve"},
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["design_digest"],
+          "properties": {"design_digest": {"$ref": "#/$defs/digest"}}
+        }
+      }
+    },
+    "build_start": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "request_id", "session_id", "action", "payload"],
+      "properties": {
+        "schema": {"const": "phicad.host-action/v1"},
+        "request_id": {"$ref": "#/$defs/request_id"},
+        "session_id": {"$ref": "#/$defs/session_id"},
+        "action": {"const": "build.start"},
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["destination", "design_digest"],
+          "properties": {
+            "destination": {"type": "string", "minLength": 1},
+            "design_digest": {"$ref": "#/$defs/digest"}
+          }
+        }
+      }
+    },
+    "build_cancel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "request_id", "session_id", "action", "payload"],
+      "properties": {
+        "schema": {"const": "phicad.host-action/v1"},
+        "request_id": {"$ref": "#/$defs/request_id"},
+        "session_id": {"$ref": "#/$defs/session_id"},
+        "action": {"const": "build.cancel"},
+        "payload": {"$ref": "#/$defs/empty_payload"}
+      }
+    },
+    "project_open": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "request_id", "session_id", "action", "payload"],
+      "properties": {
+        "schema": {"const": "phicad.host-action/v1"},
+        "request_id": {"$ref": "#/$defs/request_id"},
+        "session_id": {"$ref": "#/$defs/session_id"},
+        "action": {"const": "project.open"},
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path"],
+          "properties": {"path": {"type": "string", "minLength": 1}}
+        }
+      }
+    },
+    "session_close": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "request_id", "session_id", "action", "payload"],
+      "properties": {
+        "schema": {"const": "phicad.host-action/v1"},
+        "request_id": {"$ref": "#/$defs/request_id"},
+        "session_id": {"$ref": "#/$defs/session_id"},
+        "action": {"const": "session.close"},
+        "payload": {"$ref": "#/$defs/empty_payload"}
+      }
+    }
+  }
+}

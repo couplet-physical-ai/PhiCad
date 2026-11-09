@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://couplet-physical-ai.github.io/PhiCad/schemas/milestone-measurement.v1.json",
+  "title": "PhiCad milestone measurement v1",
+  "description": "A machine-validated record of a milestone probe, including pinned inputs, acceptance criteria, observed runs, and evidence provenance.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "milestone",
+    "result",
+    "recorded_on",
+    "subject",
+    "acceptance",
+    "runs",
+    "evidence",
+    "verification",
+    "conclusion",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "milestone": {
+      "type": "string",
+      "minLength": 1
+    },
+    "result": {
+      "$ref": "#/$defs/result"
+    },
+    "recorded_on": {
+      "$ref": "#/$defs/date"
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project", "board", "observations"],
+      "properties": {
+        "project": {
+          "type": "string",
+          "minLength": 1
+        },
+        "board": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observations": {
+          "$ref": "#/$defs/metrics"
+        }
+      }
+    },
+    "acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["statement", "thresholds"],
+      "properties": {
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "thresholds": {
+          "$ref": "#/$defs/metrics"
+        }
+      }
+    },
+    "runs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/run"
+      }
+    },
+    "evidence": {
+      "$ref": "#/$defs/evidence"
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "ci_gate"],
+      "properties": {
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ci_gate": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "conclusion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "$defs": {
+    "result": {
+      "type": "string",
+      "enum": ["pass", "fail", "inconclusive"]
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "sha1": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "metricValue": {
+      "oneOf": [
+        {"type": "string"},
+        {"type": "number"},
+        {"type": "boolean"},
+        {"type": "null"},
+        {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {"type": "string"},
+              {"type": "number"},
+              {"type": "boolean"},
+              {"type": "null"}
+            ]
+          }
+        }
+      ]
+    },
+    "metrics": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/$defs/metricValue"
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "commit", "path", "git_blob", "sha256"],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "pattern": "^https://github\\.com/"
+        },
+        "commit": {
+          "$ref": "#/$defs/sha1"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "git_blob": {
+          "$ref": "#/$defs/sha1"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "measured_on", "result", "input", "tool", "command", "observations"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "measured_on": {
+          "oneOf": [
+            {"$ref": "#/$defs/date"},
+            {"type": "null"}
+          ]
+        },
+        "result": {
+          "$ref": "#/$defs/result"
+        },
+        "input": {
+          "$ref": "#/$defs/input"
+        },
+        "tool": {
+          "$ref": "#/$defs/tool"
+        },
+        "command": {
+          "type": ["string", "null"]
+        },
+        "observations": {
+          "$ref": "#/$defs/metrics"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "commit", "path", "git_blob", "sha256", "url"],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "pattern": "^https://github\\.com/"
+        },
+        "commit": {
+          "$ref": "#/$defs/sha1"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "git_blob": {
+          "$ref": "#/$defs/sha1"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https://github\\.com/"
+        }
+      }
+    }
+  }
+}

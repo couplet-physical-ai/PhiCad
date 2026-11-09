@@ -1,0 +1,15 @@
+{
+  "name": "@phicad/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "PhiCad's circuit engine: evaluate TSX to circuit-json, check it, export it to KiCad.",
+  "bin": {
+    "phicad-core": "./cli.mjs"
+  },
+  "dependencies": {
+    "tscircuit": "0.0.2561",
+    "@tscircuit/cli": "0.1.2084",
+    "circuit-json": "0.0.491"
+  }
+}

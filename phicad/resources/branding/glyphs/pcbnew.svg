@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- PhiCad glyph: PCB Editor - board outline (chamfered corner), 45-degree trace, via.
+       Trace centreline ends exactly on the via's stroke centreline (d = r) so the
+       round cap fills the annulus cross-section with no protruding nub. -->
+  <g fill="none" stroke="#F0FDFA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5 3H19A2 2 0 0 1 21 5V17L17 21H5A2 2 0 0 1 3 19V5A2 2 0 0 1 5 3Z"/>
+    <path d="M6.4 15H10.2L12.86 12.34"/>
+  </g>
+  <circle cx="14.7" cy="10.5" r="2.6" fill="none" stroke="#2DD4BF" stroke-width="2"/>
+</svg>

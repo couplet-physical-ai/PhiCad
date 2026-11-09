@@ -1,0 +1,12 @@
+# Installed by `bun install`; bun.lock is committed so the 285-package dependency graph is
+# reproducible -- that lockfile is the mitigation for depending on 73 upstream repos.
+node_modules/
+
+# Build output and the parts-engine cache: machine-local, regenerated on demand.
+dist/
+.tscircuit/
+
+# Generated Circuit JSON. It is a BUILD ARTIFACT of one toolchain, not authored source (see the
+# manifest's `boundary` field), so committing one next to the .tsx that produces it would present
+# a stale build as an example. `phicad core export <f.tsx> -f circuit-json -o <path>` regenerates it.
+*.circuit.json

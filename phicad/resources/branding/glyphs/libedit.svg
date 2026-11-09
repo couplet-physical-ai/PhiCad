@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- PhiCad glyph: Symbol Editor - 2-pin symbol body wired between library brackets -->
+  <g fill="none" stroke="#F0FDFA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7.5 5.5H3.5V18.5H7.5M16.5 5.5H20.5V18.5H16.5"/>
+    <path d="M6.5 12H8.5M15.5 12H17.5"/>
+  </g>
+  <rect x="8.5" y="9.5" width="7" height="5" fill="#2DD4BF"/>
+</svg>

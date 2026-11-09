@@ -1,0 +1,203 @@
+{
+  "project": "regulated-breakout",
+  "title": "3V3 regulated sensor breakout",
+  "rev": "A",
+  "company": "Example Co",
+  "board": {
+    "layers": 2,
+    "outline": "auto",
+    "margin": 2.0,
+    "part_gap": 1.2,
+    "corner": {
+      "chamfer": 1.5
+    },
+    "origin": [
+      100,
+      100
+    ],
+    "ground_net": "GND",
+    "pour_ground": true
+  },
+  "rules": {
+    "clearance": 0.2,
+    "track_width": 0.25,
+    "track_widths": {
+      "VIN": 0.4,
+      "3V3": 0.4,
+      "GND": 0.4
+    }
+  },
+  "parts": {
+    "J1": {
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical",
+      "value": "1x04 2.54mm",
+      "description": "host: VIN / GND / SDA / SCL"
+    },
+    "J2": {
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical",
+      "value": "1x04 2.54mm",
+      "description": "downstream I2C: GND / 3V3 / SDA / SCL"
+    },
+    "U1": {
+      "footprint": "Package_TO_SOT_SMD:SOT-23-5",
+      "value": "AP2112K-3.3",
+      "symbol": "Regulator_Linear:AP2112K-3.3",
+      "mpn": "AP2112K-3.3TRG1",
+      "lcsc": "C51118",
+      "description": "600 mA LDO. SOT-23-5: 1 VIN, 2 GND, 3 EN, 4 NC, 5 VOUT",
+      "datasheet": "https://www.diodes.com/assets/Datasheets/AP2112.pdf"
+    },
+    "U2": {
+      "footprint": "Package_LGA:Bosch_LGA-8_2.5x2.5mm_P0.65mm_ClockwisePinNumbering",
+      "value": "BME280",
+      "symbol": "Sensor:BME280",
+      "mpn": "BME280",
+      "lcsc": "C92489",
+      "description": "LGA-8: 1,7 GND; 8 VDD; 6 VDDIO; 3 SDI/SDA; 4 SCK/SCL; 2 CSB high selects I2C; 5 SDO low selects 0x76",
+      "datasheet": "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf"
+    },
+    "C1": {
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "value": "1uF 16V X7R",
+      "description": "LDO input"
+    },
+    "C2": {
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "value": "1uF 16V X7R",
+      "description": "LDO output"
+    },
+    "C3": {
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "value": "100nF 50V X7R",
+      "description": "U2 decoupling"
+    },
+    "R1": {
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "value": "4k7 1% 1/10W",
+      "description": "SDA pull-up"
+    },
+    "R2": {
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "value": "4k7 1% 1/10W",
+      "description": "SCL pull-up"
+    },
+    "R3": {
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "value": "1k 1% 1/10W",
+      "description": "LED series"
+    },
+    "D1": {
+      "footprint": "LED_SMD:LED_0603_1608Metric",
+      "value": "LED red 2mA",
+      "description": "3V3 present. Pad 1 is the CATHODE -- KiCad's Device:LED has pin 1 = K, pin 2 = A"
+    },
+    "H1": {
+      "footprint": "MountingHole:MountingHole_2.7mm",
+      "value": "M2.5",
+      "exclude_from_bom": true
+    },
+    "H2": {
+      "footprint": "MountingHole:MountingHole_2.7mm",
+      "value": "M2.5",
+      "exclude_from_bom": true
+    }
+  },
+  "nets": {
+    "VIN": [
+      "J1.1",
+      "U1.1",
+      "U1.3",
+      "C1.1"
+    ],
+    "GND": [
+      "J1.2",
+      "J2.1",
+      "U1.2",
+      "U2.1",
+      "U2.5",
+      "U2.7",
+      "C1.2",
+      "C2.2",
+      "C3.2",
+      "R3.2"
+    ],
+    "3V3": [
+      "U1.5",
+      "C2.1",
+      "C3.1",
+      "U2.2",
+      "U2.6",
+      "U2.8",
+      "R1.2",
+      "R2.2",
+      "J2.2",
+      "D1.2"
+    ],
+    "SDA": [
+      "J1.3",
+      "J2.3",
+      "U2.3",
+      "R1.1"
+    ],
+    "SCL": [
+      "J1.4",
+      "J2.4",
+      "U2.4",
+      "R2.1"
+    ],
+    "LED_K": [
+      "D1.1",
+      "R3.1"
+    ]
+  },
+  "no_connect": [
+    "U1.4"
+  ],
+  "placement": {
+    "J1": {
+      "edge": "west"
+    },
+    "J2": {
+      "edge": "east"
+    },
+    "U1": {
+      "group": "power"
+    },
+    "C1": {
+      "near": "U1",
+      "within": 2.5,
+      "group": "power"
+    },
+    "C2": {
+      "near": "U1",
+      "within": 2.5,
+      "group": "power"
+    },
+    "U2": {
+      "group": "sensor"
+    },
+    "C3": {
+      "near": "U2",
+      "within": 2.0,
+      "group": "sensor"
+    },
+    "R1": {
+      "near": "U2",
+      "within": 4.0,
+      "group": "sensor"
+    },
+    "R2": {
+      "near": "U2",
+      "within": 4.0,
+      "group": "sensor"
+    },
+    "D1": {
+      "group": "led"
+    },
+    "R3": {
+      "near": "D1",
+      "within": 2.5,
+      "group": "led"
+    }
+  }
+}

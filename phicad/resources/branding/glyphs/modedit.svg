@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- PhiCad glyph: Footprint Editor - SOIC footprint viewed from above.
+       Silkscreen body outline + 3 filled copper pads per side, pin 1 accented. -->
+  <g fill="#F0FDFA">
+    <rect x="18.5" y="7" width="3.5" height="2.5"/>
+    <rect x="2" y="11" width="3.5" height="2.5"/>
+    <rect x="18.5" y="11" width="3.5" height="2.5"/>
+    <rect x="2" y="15" width="3.5" height="2.5"/>
+    <rect x="18.5" y="15" width="3.5" height="2.5"/>
+  </g>
+  <rect x="2" y="7" width="3.5" height="2.5" fill="#2DD4BF"/>
+  <rect x="8" y="5.5" width="8" height="13" rx="1"
+        fill="none" stroke="#F0FDFA" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

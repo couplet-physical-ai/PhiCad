@@ -1,0 +1,669 @@
+#!/usr/bin/env python3
+"""
+phicad-profile — install, capture and revert whole-suite PhiCad config profiles.
+
+This program source code file is part of KiCad, a free EDA CAD application.
+
+Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+Copyright (C) 2026 Exowatt, Inc. (PhiCad fork)
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 3 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+A profile is a directory under phicad/resources/profiles/ that seeds the
+per-user KiCad settings tree:
+
+    profile.json                  manifest (see below)
+    settings/<app>.json           SPARSE overlays deep-merged into <settings>/<app>.json
+    toolbars/<app>-toolbars.json  copied whole -> <settings>/toolbars/
+    user.hotkeys                  TSV overlay merged by action name
+
+Color themes are NOT copied into the profile: the manifest's "themes" list
+names files in phicad/resources/themes/, which stays the one place a theme is
+edited whether or not a profile ships it.
+
+Three rules the design is built around, each learned from the KiCad source:
+
+  * Never point the running app at the repo.  KiCad writes settings, AUI state,
+    recent files and migrations back to whatever KICAD_CONFIG_HOME names, so a
+    profile is COPIED into the user's tree, never symlinked or exported.
+  * The app settings files are read-modify-written and only the key paths a
+    profile's overlay actually declares are touched.  Everything else the user
+    tuned (library paths, window geometry, recent projects) survives.
+  * Themes go in the USER colors dir only.  SETTINGS_MANAGER registers a theme
+    found under GetStockDataPath(false)+"/colors" by its ABSOLUTE PATH, but a
+    user-dir theme by its stem, so `appearance.color_theme` can only ever match
+    the user-dir copy.
+
+`capture` is the inverse of `install`: it reads the live settings back into the
+repo profile, restricted to the key paths the profile already declares.  The
+intended workflow is that a human tunes the layout once in the GUI and commits a
+reviewable diff, rather than anyone hand-authoring an AUI blob.
+"""
+
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+
+BIN_DIR = os.path.dirname(os.path.abspath(__file__))
+RESOURCES = os.path.normpath(os.path.join(BIN_DIR, os.pardir, "resources"))
+PROFILES_DIR = os.path.join(RESOURCES, "profiles")
+THEMES_DIR = os.path.join(RESOURCES, "themes")
+
+# Every APP_SETTINGS_BASE-derived settings file that carries appearance.*.
+# The Altium look collapses the moment one of these is left at _builtin_default,
+# because opening a footprint or symbol editor drops back to the stock palette.
+APP_SETTINGS_FILES = (
+    "pcbnew.json",
+    "eeschema.json",
+    "fpedit.json",
+    "symbol_editor.json",
+    "3d_viewer.json",
+    "cvpcb.json",
+    "kicad.json",
+)
+
+
+def log(msg):
+    print(msg)
+
+
+def die(msg):
+    sys.exit(f"error: {msg}")
+
+
+# ------------------------------------------------------------------ locations
+
+
+def kicad_config_root(override=None):
+    """Return the settings ROOT — the directory that holds <major.minor>/.
+
+    KICAD_CONFIG_HOME is the root, not the versioned dir: PATHS::
+    CalculateUserSettingsPath appends GetMajorMinorVersion() itself
+    (common/paths.cpp).  Handing it an already-versioned path silently creates
+    <path>/10.99/10.99/ and nothing is ever found there.
+    """
+    if override:
+        return os.path.abspath(os.path.expanduser(override))
+    env = os.environ.get("KICAD_CONFIG_HOME")
+    if env:
+        return os.path.abspath(os.path.expanduser(env))
+    if sys.platform == "darwin":
+        return os.path.expanduser("~/Library/Preferences/kicad")
+    xdg = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
+    return os.path.join(xdg, "kicad")
+
+
+def versioned_dirs(root):
+    if not os.path.isdir(root):
+        return []
+    vers = [d for d in os.listdir(root)
+            if re.fullmatch(r"\d+\.\d+", d)
+            and os.path.isdir(os.path.join(root, d))]
+    vers.sort(key=lambda v: tuple(int(p) for p in v.split(".")))
+    return vers
+
+
+def kicad_settings_dir(root, version=None):
+    """Return <root>/<major.minor>, newest by default."""
+    if not os.path.isdir(root):
+        die(f"KiCad settings root not found: {root}\n"
+            "       Run PhiCad once so it creates its settings, then retry.")
+    vers = versioned_dirs(root)
+    if version:
+        if version not in vers:
+            die(f"no settings dir {root}/{version} "
+                f"(present: {', '.join(vers) or 'none'})")
+        return os.path.join(root, version)
+    if not vers:
+        die(f"no versioned settings dir under {root}")
+    if len(vers) > 1:
+        log(f"note: several settings versions present ({', '.join(vers)}); "
+            f"using {vers[-1]} — override with --version")
+    return os.path.join(root, vers[-1])
+
+
+def backups_root(root):
+    """Backups live BESIDE the settings root, never inside it.
+
+    SETTINGS_MANAGER walks the root looking for <major.minor> dirs to migrate
+    from and scans <settings>/colors for themes; a backup tree in either place
+    is at best noise and at worst a phantom theme in the picker.
+    """
+    return root.rstrip(os.sep) + "-phicad-backups"
+
+
+# ------------------------------------------------------------------- profiles
+
+
+def load_profile(name):
+    path = os.path.join(PROFILES_DIR, name)
+    manifest_path = os.path.join(path, "profile.json")
+    if not os.path.isfile(manifest_path):
+        avail = ", ".join(list_profiles()) or "(none)"
+        die(f"unknown profile '{name}'. Available: {avail}")
+    with open(manifest_path, encoding="utf-8") as f:
+        manifest = json.load(f)
+    manifest["_path"] = path
+    return manifest
+
+
+def list_profiles():
+    if not os.path.isdir(PROFILES_DIR):
+        return []
+    return sorted(d for d in os.listdir(PROFILES_DIR)
+                  if os.path.isfile(os.path.join(PROFILES_DIR, d, "profile.json")))
+
+
+# ------------------------------------------------------- sparse JSON overlays
+
+
+def leaf_paths(obj, opaque, prefix=""):
+    """Yield dotted paths of an overlay's leaves.
+
+    A path listed in the manifest's "opaque" set stops the walk: `window.
+    aui_state` is a serialized pane list, so merging into it key-by-key would
+    splice two layouts together and produce a third that was never tested.
+    """
+    for key, val in obj.items():
+        path = f"{prefix}{key}"
+        if isinstance(val, dict) and path not in opaque:
+            yield from leaf_paths(val, opaque, path + ".")
+        else:
+            yield path
+
+
+def get_path(obj, path):
+    cur = obj
+    for part in path.split("."):
+        if not isinstance(cur, dict) or part not in cur:
+            return None, False
+        cur = cur[part]
+    return cur, True
+
+
+def set_path(obj, path, value):
+    parts = path.split(".")
+    cur = obj
+    for part in parts[:-1]:
+        nxt = cur.get(part)
+        if not isinstance(nxt, dict):
+            nxt = {}
+            cur[part] = nxt
+        cur = nxt
+    changed = cur.get(parts[-1]) != value or parts[-1] not in cur
+    cur[parts[-1]] = value
+    return changed
+
+
+def write_json(path, data):
+    tmp = path + ".phicad-tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+    os.replace(tmp, path)
+
+
+def apply_overlay(settings_path, overlay, opaque, dry_run):
+    """Read-modify-write one settings file; only the overlay's paths are set."""
+    name = os.path.basename(settings_path)
+    if not os.path.isfile(settings_path):
+        log(f"  skip {name} (not created yet — open that editor once, then re-run)")
+        return 0
+    with open(settings_path, encoding="utf-8") as f:
+        settings = json.load(f)
+
+    touched = []
+    for path in leaf_paths(overlay, opaque):
+        value, _ = get_path(overlay, path)
+        current, present = get_path(settings, path)
+        if present and current == value:
+            continue
+        set_path(settings, path, value)
+        touched.append(path)
+
+    if not touched:
+        log(f"  {name}: already current")
+        return 0
+    if not dry_run:
+        write_json(settings_path, settings)
+    verb = "would set" if dry_run else "set"
+    log(f"  {name}: {verb} {', '.join(touched)}")
+    return len(touched)
+
+
+# ---------------------------------------------------------------- user.hotkeys
+
+
+def read_hotkeys(path):
+    """Parse the TSV hotkey file: <action.name>\\t<Key>\\t<AltKey> per line.
+
+    Mirrors ReadHotKeyConfig (common/hotkeys_basic.cpp): tab-separated, missing
+    trailing fields allowed, unknown action names harmlessly ignored by KiCad.
+    """
+    hotkeys = {}
+    if not os.path.isfile(path):
+        return hotkeys
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            line = line.rstrip("\r\n")
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split("\t")
+            name = parts[0].strip()
+            if not name:
+                continue
+            hotkeys[name] = (parts[1] if len(parts) > 1 else "",
+                             parts[2] if len(parts) > 2 else "")
+    return hotkeys
+
+
+def write_hotkeys(path, hotkeys):
+    tmp = path + ".phicad-tmp"
+    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+        for name in sorted(hotkeys):
+            key, alt = hotkeys[name]
+            f.write(f"{name}\t{key}\t{alt}\n")
+    os.replace(tmp, path)
+
+
+def apply_hotkeys(profile_file, live_file, dry_run):
+    """Overlay the profile's bindings onto the user's file, keeping the rest.
+
+    KiCad rewrites this file wholesale from the in-memory action list whenever
+    the hotkey editor is used, so the profile can only ever be a seed: it wins
+    at install time and the user wins afterwards.
+    """
+    wanted = read_hotkeys(profile_file)
+    if not wanted:
+        return 0
+    live = read_hotkeys(live_file)
+    changed = [n for n, v in wanted.items() if live.get(n) != v]
+    if not changed:
+        log(f"  user.hotkeys: already current ({len(wanted)} binding(s))")
+        return 0
+    live.update(wanted)
+    if not dry_run:
+        write_hotkeys(live_file, live)
+    verb = "would rebind" if dry_run else "rebound"
+    log(f"  user.hotkeys: {verb} {len(changed)} of {len(wanted)} binding(s)")
+    return len(changed)
+
+
+# ------------------------------------------------------------------- backups
+
+
+def backup_settings(root, settings_dir, files, colors, toolbars):
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    dest = os.path.join(backups_root(root), os.path.basename(settings_dir), stamp)
+    os.makedirs(dest, exist_ok=True)
+    saved = 0
+    for rel in list(files) + ["user.hotkeys"]:
+        src = os.path.join(settings_dir, rel)
+        if os.path.isfile(src):
+            shutil.copy2(src, os.path.join(dest, rel))
+            saved += 1
+    for sub, names in (("colors", colors), ("toolbars", toolbars)):
+        for name in names:
+            src = os.path.join(settings_dir, sub, name)
+            if os.path.isfile(src):
+                os.makedirs(os.path.join(dest, sub), exist_ok=True)
+                shutil.copy2(src, os.path.join(dest, sub, name))
+                saved += 1
+    log(f"backed up {saved} file(s) to {dest}")
+    return dest
+
+
+def latest_backup(root, settings_dir):
+    base = os.path.join(backups_root(root), os.path.basename(settings_dir))
+    if not os.path.isdir(base):
+        return None
+    stamps = sorted(d for d in os.listdir(base)
+                    if os.path.isdir(os.path.join(base, d)))
+    return os.path.join(base, stamps[-1]) if stamps else None
+
+
+def cmd_revert(args):
+    root = kicad_config_root(args.config_home)
+    settings_dir = kicad_settings_dir(root, args.version)
+    src = latest_backup(root, settings_dir)
+    if not src:
+        die(f"no backup found under {backups_root(root)} — "
+            "`phicad profile install --backup` makes one")
+    warn_if_running(args.force)
+    log(f"restoring {src} -> {settings_dir}")
+    restored = 0
+    for dirpath, _dirnames, filenames in os.walk(src):
+        rel = os.path.relpath(dirpath, src)
+        out = settings_dir if rel == "." else os.path.join(settings_dir, rel)
+        os.makedirs(out, exist_ok=True)
+        for name in filenames:
+            shutil.copy2(os.path.join(dirpath, name), os.path.join(out, name))
+            restored += 1
+            log(f"  {os.path.join(rel, name) if rel != '.' else name}")
+    log(f"restored {restored} file(s). Restart PhiCad.")
+
+
+# ------------------------------------------------------------- running-app guard
+
+
+def phicad_is_running():
+    """True if a PhiCad/KiCad GUI has the settings files open.
+
+    Every EDA_BASE_FRAME writes its settings back on close, so installing under
+    a running app is a coin flip: the seeds land and are then overwritten by
+    whatever the app held in memory.
+
+    Only the GUI binary counts (`kicad` is the compatibility symlink to it).
+    Matching the whole MacOS/ directory also caught `kicad-cli api-server`,
+    which a headless agent may keep running for hours and which does not own
+    the editors' window/appearance state.
+    """
+    pattern = r"PhiCad\.app/Contents/MacOS/(PhiCad|kicad)($| )"
+    try:
+        out = subprocess.run(["pgrep", "-f", pattern],
+                             capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return bool(out.stdout.strip())
+
+
+def warn_if_running(force):
+    if not phicad_is_running():
+        return
+    msg = ("PhiCad is running; it rewrites these files on exit and would "
+           "discard the profile")
+    if not force:
+        die(f"{msg}. Quit PhiCad and retry (or pass --force).")
+    log(f"warning: {msg} — continuing because --force was given")
+
+
+# ------------------------------------------------------------------- commands
+
+
+def cmd_list(args):
+    root = kicad_config_root(args.config_home)
+    names = list_profiles()
+    log(f"Profiles ({PROFILES_DIR}):")
+    for name in names:
+        log(f"  {name:12} {load_profile(name).get('description', '')}")
+    if not names:
+        log("  (none)")
+    log(f"\nThemes ({THEMES_DIR}):")
+    for name in json_files(THEMES_DIR):
+        log(f"  {name[:-5]}")
+    log("")
+    log(f"Settings root: {root}")
+    if os.path.isdir(root):
+        for ver in versioned_dirs(root):
+            themes = []
+            colors = os.path.join(root, ver, "colors")
+            if os.path.isdir(colors):
+                themes = sorted(f[:-5] for f in os.listdir(colors)
+                                if f.endswith(".json"))
+            log(f"  {ver}: themes: {', '.join(themes) or '(none)'}")
+            for fname in APP_SETTINGS_FILES:
+                path = os.path.join(root, ver, fname)
+                if not os.path.isfile(path):
+                    log(f"    {fname:18} (not created)")
+                    continue
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
+                app = data.get("appearance", {})
+                log(f"    {fname:18} theme={app.get('color_theme', '?')} "
+                    f"custom_toolbars={app.get('custom_toolbars', '?')}")
+    else:
+        log("  (not created — run PhiCad once)")
+
+
+def json_files(path):
+    if not os.path.isdir(path):
+        return []
+    return sorted(f for f in os.listdir(path) if f.endswith(".json"))
+
+
+def profile_assets(manifest):
+    path = manifest["_path"]
+    themes = [f"{t}.json" for t in manifest.get("themes", [])]
+    return themes, json_files(os.path.join(path, "toolbars")), \
+        json_files(os.path.join(path, "settings"))
+
+
+def install_themes(names, settings_dir, dry_run):
+    """Copy themes into the USER colors dir — never the stock one.
+
+    A theme found under GetStockDataPath(false)+"/colors" is registered by its
+    absolute path while a user-dir theme is registered by its stem, so
+    appearance.color_theme can only ever resolve against the user dir.
+    """
+    if not names:
+        return
+    dest_dir = os.path.join(settings_dir, "colors")
+    if not dry_run:
+        os.makedirs(dest_dir, exist_ok=True)
+    for name in names:
+        src = os.path.join(THEMES_DIR, name)
+        if not os.path.isfile(src):
+            die(f"theme not found: {src}")
+        with open(src, encoding="utf-8") as f:
+            theme = json.load(f)
+        if "version" not in theme.get("meta", {}):
+            die(f"{src} lacks meta.version; KiCad would reject it silently")
+        if not dry_run:
+            shutil.copyfile(src, os.path.join(dest_dir, name))
+        log(f"  {'would install' if dry_run else 'installed'} colors/{name}")
+
+
+def cmd_install(args):
+    manifest = load_profile(args.name)
+    root = kicad_config_root(args.config_home)
+    settings_dir = kicad_settings_dir(root, args.version)
+    colors, toolbars, settings = profile_assets(manifest)
+    opaque = set(manifest.get("opaque", []))
+
+    if not args.dry_run:
+        warn_if_running(args.force)
+
+    log(f"profile '{args.name}' -> {settings_dir}")
+    if args.backup and not args.dry_run:
+        backup_settings(root, settings_dir, settings, colors, toolbars)
+
+    # Themes first: a settings file naming a theme that is not on disk yet
+    # falls back to the builtin default without saying so.
+    install_themes(colors, settings_dir, args.dry_run)
+
+    for name in toolbars:
+        src = os.path.join(manifest["_path"], "toolbars", name)
+        dest_dir = os.path.join(settings_dir, "toolbars")
+        if not args.dry_run:
+            os.makedirs(dest_dir, exist_ok=True)
+            shutil.copyfile(src, os.path.join(dest_dir, name))
+        log(f"  {'would install' if args.dry_run else 'installed'} "
+            f"toolbars/{name}")
+
+    for name in settings:
+        with open(os.path.join(manifest["_path"], "settings", name),
+                  encoding="utf-8") as f:
+            overlay = json.load(f)
+        apply_overlay(os.path.join(settings_dir, name), overlay, opaque,
+                      args.dry_run)
+
+    hk = os.path.join(manifest["_path"], "user.hotkeys")
+    if os.path.isfile(hk):
+        apply_hotkeys(hk, os.path.join(settings_dir, "user.hotkeys"),
+                      args.dry_run)
+
+    if args.dry_run:
+        log("dry run: nothing was written")
+    else:
+        log("done. Restart PhiCad for the profile to take effect.")
+
+
+def cmd_capture(args):
+    """Snapshot the live settings back into the repo profile.
+
+    Only the key paths the profile already declares are captured, so a capture
+    can add no new surface — reviewing the commit means reading a diff of the
+    same keys, not auditing whatever the GUI happened to write that session.
+    """
+    manifest = load_profile(args.name)
+    root = kicad_config_root(args.config_home)
+    settings_dir = kicad_settings_dir(root, args.version)
+    colors, toolbars, settings = profile_assets(manifest)
+    opaque = set(manifest.get("opaque", []))
+    ppath = manifest["_path"]
+    changes = 0
+
+    log(f"capturing {settings_dir} -> {ppath}")
+
+    for name in settings:
+        overlay_path = os.path.join(ppath, "settings", name)
+        live_path = os.path.join(settings_dir, name)
+        if not os.path.isfile(live_path):
+            log(f"  skip {name} (not in the live settings)")
+            continue
+        with open(overlay_path, encoding="utf-8") as f:
+            overlay = json.load(f)
+        with open(live_path, encoding="utf-8") as f:
+            live = json.load(f)
+        touched = []
+        for path in list(leaf_paths(overlay, opaque)):
+            value, present = get_path(live, path)
+            if not present:
+                log(f"  {name}: {path} absent live, keeping profile value")
+                continue
+            old, _ = get_path(overlay, path)
+            if old != value:
+                set_path(overlay, path, value)
+                touched.append(path)
+        if touched:
+            write_json(overlay_path, overlay)
+            changes += len(touched)
+            log(f"  {name}: captured {', '.join(touched)}")
+        else:
+            log(f"  {name}: unchanged")
+
+    for name in toolbars:
+        live_path = os.path.join(settings_dir, "toolbars", name)
+        if not os.path.isfile(live_path):
+            log(f"  skip toolbars/{name} (not in the live settings)")
+            continue
+        dest = os.path.join(ppath, "toolbars", name)
+        if not files_equal(live_path, dest):
+            shutil.copyfile(live_path, dest)
+            changes += 1
+            log(f"  captured toolbars/{name}")
+
+    for name in colors:
+        live_path = os.path.join(settings_dir, "colors", name)
+        dest = os.path.join(THEMES_DIR, name)
+        if os.path.isfile(live_path) and not files_equal(live_path, dest):
+            shutil.copyfile(live_path, dest)
+            changes += 1
+            log(f"  captured themes/{name} (edited in Preferences -> Colors)")
+
+    hk_profile = os.path.join(ppath, "user.hotkeys")
+    hk_live = os.path.join(settings_dir, "user.hotkeys")
+    if os.path.isfile(hk_profile) and os.path.isfile(hk_live):
+        wanted = read_hotkeys(hk_profile)
+        live = read_hotkeys(hk_live)
+        # Only the actions the profile already binds: the live file lists every
+        # action in the suite, and committing all ~900 of them would bury the
+        # handful of deliberate choices.
+        updated = {n: live[n] for n in wanted if n in live}
+        if updated != {n: wanted[n] for n in updated}:
+            wanted.update(updated)
+            write_hotkeys(hk_profile, wanted)
+            changes += 1
+            log(f"  captured user.hotkeys ({len(updated)} binding(s))")
+
+    log(f"{changes} change(s). Review with: git diff -- phicad/resources/")
+
+
+def cmd_theme(args):
+    """Install one theme and point every appearance.color_theme at it.
+
+    All seven APP_SETTINGS_FILES, not just pcbnew and eeschema: leaving the
+    footprint, symbol, 3D, cvpcb and manager settings at _builtin_default means
+    the theme collapses the first time one of those windows opens.
+    """
+    root = kicad_config_root(args.config_home)
+    settings_dir = kicad_settings_dir(root, args.version)
+    warn_if_running(args.force)
+    install_themes([args.name + ".json"], settings_dir, False)
+    log(f"activating '{args.name}' in {settings_dir}:")
+    overlay = {"appearance": {"color_theme": args.name}}
+    for fname in APP_SETTINGS_FILES:
+        apply_overlay(os.path.join(settings_dir, fname), overlay, set(), False)
+    log("done. Restart PhiCad (or reopen the editors) to see the theme.")
+
+
+def files_equal(a, b):
+    if not os.path.isfile(b):
+        return False
+    with open(a, "rb") as fa, open(b, "rb") as fb:
+        return fa.read() == fb.read()
+
+
+def main():
+    p = argparse.ArgumentParser(
+        prog="phicad profile",
+        description="Install, capture and revert PhiCad configuration profiles.")
+    p.add_argument("--config-home", metavar="DIR",
+                   help="settings ROOT to act on (default: KICAD_CONFIG_HOME or "
+                        "the platform path). This is the dir CONTAINING "
+                        "<major.minor>, not the versioned dir itself.")
+    p.add_argument("--version", metavar="MAJOR.MINOR",
+                   help="settings version to act on (default: newest present)")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    sp = sub.add_parser("list", help="list profiles and what is installed")
+    sp.set_defaults(func=cmd_list)
+
+    sp = sub.add_parser("install", help="install a profile into the user settings")
+    sp.add_argument("name")
+    sp.add_argument("--backup", action="store_true",
+                    help="copy the files about to change to a timestamped backup")
+    sp.add_argument("--dry-run", action="store_true",
+                    help="report what would change, write nothing")
+    sp.add_argument("--force", action="store_true",
+                    help="install even while PhiCad is running (it will lose)")
+    sp.set_defaults(func=cmd_install)
+
+    sp = sub.add_parser("capture",
+                        help="snapshot the live settings back into the repo profile")
+    sp.add_argument("name")
+    sp.set_defaults(func=cmd_capture)
+
+    sp = sub.add_parser("theme", help="install one color theme and select it everywhere")
+    sp.add_argument("name")
+    sp.add_argument("--force", action="store_true",
+                    help="apply even while PhiCad is running")
+    sp.set_defaults(func=cmd_theme)
+
+    sp = sub.add_parser("revert", help="restore the most recent --backup")
+    sp.add_argument("--force", action="store_true",
+                    help="revert even while PhiCad is running")
+    sp.set_defaults(func=cmd_revert)
+
+    args = p.parse_args()
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()

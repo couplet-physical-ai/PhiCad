@@ -1,0 +1,10 @@
+{
+  "appearance": {
+    "color_theme": "phicad-altium"
+  },
+  "aui": {
+    "properties_panel_width": 300,
+    "show_properties": true,
+    "show_schematic_hierarchy": true
+  }
+}

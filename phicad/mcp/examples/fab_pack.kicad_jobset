@@ -1,0 +1,53 @@
+{
+  "jobs": [
+    {
+      "description": "DRC gate (JSON report)",
+      "id": "11111111-1111-1111-1111-111111111111",
+      "settings": {
+        "all_track_errors": false,
+        "description": "",
+        "fail_on_error": true,
+        "format": "json",
+        "output_filename": "drc.json",
+        "parity": false,
+        "refill_zones": false,
+        "report_all_track_errors": false,
+        "severity": 52,
+        "units": 0
+      },
+      "type": "pcb_drc"
+    },
+    {
+      "description": "Gerbers",
+      "id": "22222222-2222-2222-2222-222222222222",
+      "settings": {
+        "description": "",
+        "output_filename": "gerbers/"
+      },
+      "type": "pcb_export_gerbers"
+    },
+    {
+      "description": "Excellon drill files",
+      "id": "44444444-4444-4444-4444-444444444444",
+      "settings": {
+        "description": "",
+        "output_filename": "gerbers/"
+      },
+      "type": "pcb_export_drill"
+    }
+  ],
+  "meta": {
+    "version": 1
+  },
+  "outputs": [
+    {
+      "description": "fab pack",
+      "id": "33333333-3333-3333-3333-333333333333",
+      "only": [],
+      "settings": {
+        "output_path": "fab"
+      },
+      "type": "folder"
+    }
+  ]
+}

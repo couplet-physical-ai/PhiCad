@@ -1,0 +1,123 @@
+{
+  "project": "sensor-node",
+  "title": "I2C sensor node",
+  "rev": "A",
+  "company": "Example Co",
+  "board": {
+    "layers": 2,
+    "outline": "auto",
+    "margin": 2.0,
+    "corner": {
+      "chamfer": 2.0
+    },
+    "origin": [
+      100,
+      100
+    ],
+    "ground_net": "GND",
+    "pour_ground": true
+  },
+  "rules": {
+    "clearance": 0.2,
+    "track_width": 0.25,
+    "track_widths": {
+      "3V3": 0.4,
+      "GND": 0.4
+    }
+  },
+  "parts": {
+    "J1": {
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical",
+      "value": "1x04 2.54mm",
+      "description": "host connector: GND / 3V3 / SDA / SCL"
+    },
+    "U1": {
+      "footprint": "Package_LGA:Bosch_LGA-8_2.5x2.5mm_P0.65mm_ClockwisePinNumbering",
+      "value": "BME280",
+      "symbol": "Sensor:BME280",
+      "mpn": "BME280",
+      "lcsc": "C92489",
+      "description": "temperature / humidity / pressure sensor. LGA-8: 1,7 GND; 8 VDD; 6 VDDIO; 3 SDI/SDA; 4 SCK/SCL; 2 CSB tied high selects I2C; 5 SDO tied low selects address 0x76",
+      "datasheet": "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf"
+    },
+    "C1": {
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "value": "100nF 50V X7R",
+      "description": "U1 decoupling"
+    },
+    "C2": {
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "value": "10uF 16V X5R",
+      "description": "3V3 bulk"
+    },
+    "R1": {
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "value": "4k7 1% 1/10W",
+      "description": "SDA pull-up"
+    },
+    "R2": {
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "value": "4k7 1% 1/10W",
+      "description": "SCL pull-up"
+    }
+  },
+  "nets": {
+    "GND": [
+      "J1.1",
+      "U1.1",
+      "U1.5",
+      "U1.7",
+      "C1.2",
+      "C2.2"
+    ],
+    "3V3": [
+      "J1.2",
+      "U1.2",
+      "U1.6",
+      "U1.8",
+      "C1.1",
+      "C2.1",
+      "R1.2",
+      "R2.2"
+    ],
+    "SDA": [
+      "J1.3",
+      "U1.3",
+      "R1.1"
+    ],
+    "SCL": [
+      "J1.4",
+      "U1.4",
+      "R2.1"
+    ]
+  },
+  "no_connect": [],
+  "placement": {
+    "J1": {
+      "edge": "west",
+      "rot": 0
+    },
+    "U1": {
+      "group": "sensor"
+    },
+    "C1": {
+      "near": "U1",
+      "within": 2.5,
+      "group": "sensor"
+    },
+    "C2": {
+      "near": "J1",
+      "within": 4.0
+    },
+    "R1": {
+      "near": "U1",
+      "within": 4.0,
+      "group": "sensor"
+    },
+    "R2": {
+      "near": "U1",
+      "within": 4.0,
+      "group": "sensor"
+    }
+  }
+}

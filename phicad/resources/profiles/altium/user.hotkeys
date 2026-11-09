@@ -1,0 +1,43 @@
+# PhiCad Altium profile — PROVISIONAL hotkey overlay.
+#
+# Format is KiCad's own: <action.name>\t<Key>\t<AltKey>, parsed by
+# ReadHotKeyConfig (common/hotkeys_basic.cpp).  Lines starting with # are
+# stripped by phicad-profile and never reach the installed file: KiCad would
+# store a comment as an action named "#..." and keep rewriting it forever.
+#
+# GROUNDING CAVEAT.  phicad/research/altium/ux.md was produced with no live
+# Altium Designer to check against (its report contract records BLOCKED), so
+# these are the mappings that are both widely documented for AD and provable
+# here, not a transcription of a real install.  Spot-check them against the
+# Altium version you actually use before trusting the file.
+#
+# Every line keeps KiCad's own default as the ALT key, so nothing a KiCad user
+# already knows stops working -- and if macOS swallows the Cmd combination the
+# original key is still there.
+#
+# Constraints these mappings were checked against:
+#   * Ctrl+ and Cmd+ both parse to MD_CTRL on every platform, but Alt+ parses
+#     only off macOS (MODIFIER_ALT is Option+ here), so no Alt binding is used.
+#   * an unparseable key name does not fall back -- it silently REMOVES the
+#     action's default binding, so every literal below is from hotkeyNameList.
+#   * no combination below collides with another action registered in the same
+#     editor (checked against every .DefaultHotkey in the tree).
+#
+# Deliberately NOT mapped, and why:
+#   Ctrl+M  (AD Measure Distance) collides with pcbnew.InteractiveMove.
+#           moveIndividually, and Cmd+M is the macOS minimise gesture.
+#   L       (AD View Configurations) collides with pcbnew.EditorControl.toggleLock.
+#   Q       (AD toggle units) collides with eeschema.InteractiveDrawing.placeNoConnect.
+#   2 / 3   (AD 2D/3D view) collide with the length-tuner adjustments, and KiCad
+#           has no 2D-view action to bind the other half to.
+#   F11     (AD Properties panel) is the macOS Show Desktop key; the Properties
+#           and Appearance panels already have left-toolbar toggles instead.
+
+# AD Ctrl+W = Interactively Route Connections; KiCad ships X.
+pcbnew.InteractiveRouter.SingleTrack	Ctrl+W	X
+# AD Ctrl+W = Place Wire; KiCad ships W.
+eeschema.InteractiveDrawingLineWireBus.drawWires	Ctrl+W	W
+# AD Ctrl+H = Select > Connected Copper; KiCad ships U.
+pcbnew.InteractiveSelection.SelectConnection	Ctrl+H	U
+# AD Ctrl+PgDn = Fit Document; KiCad ships Ctrl+0.
+common.Control.zoomFitScreen	Ctrl+PgDn	Ctrl+0

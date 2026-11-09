@@ -1,0 +1,217 @@
+{
+  "title": "PhiCad agent suite",
+  "uid": "phicad-agents",
+  "tags": ["phicad", "gateway"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "5m",
+  "time": { "from": "now-7d", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "bucket",
+        "label": "Bucket",
+        "type": "textbox",
+        "query": "phicad",
+        "current": { "text": "phicad", "value": "phicad" }
+      },
+      {
+        "name": "source",
+        "label": "Source",
+        "type": "custom",
+        "multi": true,
+        "includeAll": true,
+        "query": "chat_pane,design_agent,new_project,mcp",
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Is anyone using it, and does it work",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Model turns, by source",
+      "description": "The repair loop (design_agent) usually outnumbers the chat pane. If chat_pane is the only line here, the loop is not running.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 20, "stacking": { "mode": "normal" } } } },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"phicad\" and r.event == \"ai.turn\" and r._field == \"duration_ms\")\n  |> filter(fn: (r) => contains(value: r.source, set: ${source:json}) or ${source:json}[0] == \"$__all\")\n  |> aggregateWindow(every: v.windowPeriod, fn: count, createEmpty: false)\n  |> group(columns: [\"source\"])\n  |> rename(columns: {_value: \"turns\"})"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Turn duration — median and p90",
+      "description": "Median and p90, never a mean: one 300s timeout among twenty 2s turns moves a mean by fifteen seconds and says nothing about a typical turn.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "ms" } },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"phicad\" and r.event == \"ai.turn\" and r._field == \"duration_ms\")\n  |> aggregateWindow(every: v.windowPeriod, fn: median, createEmpty: false)\n  |> set(key: \"_field\", value: \"median\")\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])"
+        },
+        {
+          "refId": "B",
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"phicad\" and r.event == \"ai.turn\" and r._field == \"duration_ms\")\n  |> aggregateWindow(every: v.windowPeriod, fn: (tables=<-, column) => tables |> quantile(q: 0.9, column: column), createEmpty: false)\n  |> set(key: \"_field\", value: \"p90\")\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])"
+        }
+      ]
+    },
+    {
+      "type": "piechart",
+      "title": "Turn outcomes",
+      "description": "Anything other than ok. timeout and empty_reply mean the backend; stopped means the user pressed Stop.",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 9 },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "values": ["value"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"phicad\" and r.event == \"ai.turn\" and r._field == \"duration_ms\")\n  |> group(columns: [\"outcome\"])\n  |> count()"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Failure rate",
+      "description": "Share of model turns that did not return a reply.",
+      "gridPos": { "h": 8, "w": 4, "x": 8, "y": 9 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 0.05 },
+            { "color": "red", "value": 0.15 }
+          ] }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "base = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"phicad\" and r.event == \"ai.turn\" and r._field == \"duration_ms\")\ntotal = base |> group() |> count()\nbad = base |> filter(fn: (r) => r.outcome != \"ok\") |> group() |> count()\njoin(tables: {t: total, b: bad}, on: [\"_start\"])\n  |> map(fn: (r) => ({_time: r._start, _value: float(v: r._value_b) / float(v: r._value_t)}))"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Reply size — median and p90",
+      "description": "Sizes, never content. A collapsing p90 usually means replies are being truncated.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"phicad\" and r.event == \"ai.turn\" and r._field == \"reply_bytes\")\n  |> aggregateWindow(every: v.windowPeriod, fn: median, createEmpty: false)"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "The compiler",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 }
+    },
+    {
+      "type": "barchart",
+      "title": "Which gate is failing builds",
+      "description": "failed_stage is the FIRST failing gate. This is the panel that turns 'a build failed' into 'route fails on every four-layer board'.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"phicad\" and r.event == \"synth.run\" and r._field == \"duration_ms\")\n  |> filter(fn: (r) => exists r.failed_stage)\n  |> group(columns: [\"failed_stage\"])\n  |> count()\n  |> group()\n  |> sort(columns: [\"_value\"], desc: true)"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Synth runs, by source",
+      "description": "mcp is an external agent driving the toolchain; new_project is someone in the GUI.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+      "fieldConfig": { "defaults": { "custom": { "fillOpacity": 20, "stacking": { "mode": "normal" } } } },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"phicad\" and r.event == \"synth.run\" and r._field == \"duration_ms\")\n  |> aggregateWindow(every: v.windowPeriod, fn: count, createEmpty: false)\n  |> group(columns: [\"source\"])"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Designs that repaired themselves",
+      "description": "Cycles whose LAST attempt passed after an earlier one failed. Counting attempts flat would report each of these as several failures.",
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 26 },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "fixed", "fixedColor": "green" } } },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"phicad\" and r.event == \"synth.run\" and r._field == \"attempt\")\n  |> group(columns: [\"run_id\"])\n  |> max()\n  |> filter(fn: (r) => r._value > 0)\n  |> group()\n  |> count()"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Repair attempts per cycle",
+      "description": "How hard the loop is working. Climbing toward PHICAD_AI_REPAIR_ATTEMPTS (default 8) means designs are only just converging.",
+      "gridPos": { "h": 7, "w": 16, "x": 8, "y": 26 },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"phicad\" and r.event == \"synth.run\" and r._field == \"attempt\")\n  |> aggregateWindow(every: v.windowPeriod, fn: max, createEmpty: false)"
+        }
+      ]
+    },
+    {
+      "title": "Cost (USD), by model",
+      "description": "Provider-reported dollar cost per turn (phi --mode json), summed per window and grouped by the model tag. Turns whose backend reported no usage carry no cost_usd point at all — absence means unmeasured, never zero.",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 7,
+        "w": 16,
+        "x": 0,
+        "y": 33
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"phicad\" and r.event == \"ai.turn\" and r._field == \"cost_usd\")\n  |> group(columns: [\"model\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: sum, createEmpty: false)\n  |> rename(columns: {_value: \"usd\"})"
+        }
+      ]
+    },
+    {
+      "title": "Spend in range",
+      "description": "Sum of provider-reported cost_usd over every measured turn in the time range.",
+      "type": "stat",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 33
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"phicad\" and r.event == \"ai.turn\" and r._field == \"cost_usd\")\n  |> group()\n  |> sum()"
+        }
+      ]
+    }
+  ]
+}

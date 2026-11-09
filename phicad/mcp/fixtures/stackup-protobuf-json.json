@@ -1,0 +1,74 @@
+{
+  "finish": {
+    "typeName": "ENIG"
+  },
+  "impedance": {
+    "isControlled": true
+  },
+  "edge": {
+    "connector": {
+      "type": "BECT_NONE"
+    },
+    "plating": {}
+  },
+  "layers": [
+    {
+      "layer": "BL_F_Cu",
+      "enabled": true,
+      "type": "BSLT_COPPER",
+      "materialName": "copper",
+      "userName": "F.Cu"
+    },
+    {
+      "layer": "BL_In1_Cu",
+      "enabled": true,
+      "type": "BSLT_COPPER",
+      "materialName": "copper",
+      "userName": "In1.Cu"
+    },
+    {
+      "layer": "BL_In2_Cu",
+      "enabled": true,
+      "type": "BSLT_COPPER",
+      "materialName": "copper",
+      "userName": "In2.Cu"
+    },
+    {
+      "layer": "BL_B_Cu",
+      "enabled": true,
+      "type": "BSLT_COPPER",
+      "materialName": "copper",
+      "userName": "B.Cu"
+    },
+    {
+      "layer": "BL_F_Mask",
+      "enabled": true,
+      "type": "BSLT_SOLDERMASK",
+      "userName": "F.Mask"
+    },
+    {
+      "layer": "BL_B_Mask",
+      "enabled": true,
+      "type": "BSLT_SOLDERMASK",
+      "userName": "B.Mask"
+    },
+    {
+      "layer": "BL_F_SilkS",
+      "enabled": true,
+      "type": "BSLT_SILKSCREEN",
+      "userName": "F.Silkscreen"
+    },
+    {
+      "layer": "BL_B_SilkS",
+      "enabled": true,
+      "type": "BSLT_SILKSCREEN",
+      "userName": "B.Silkscreen"
+    },
+    {
+      "layer": "BL_F_Paste",
+      "enabled": true,
+      "type": "BSLT_SOLDERPASTE",
+      "userName": "F.Paste"
+    }
+  ]
+}

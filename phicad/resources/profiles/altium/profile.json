@@ -1,0 +1,11 @@
+{
+  "name": "altium",
+  "description": "Altium Designer ergonomics for the whole PhiCad suite",
+  "themes": [
+    "phicad-altium"
+  ],
+  "opaque": [
+    "window.aui_state"
+  ],
+  "pinned_settings_version": "10.99"
+}

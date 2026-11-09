@@ -1,0 +1,9 @@
+{
+  "appearance": {
+    "color_theme": "phicad-altium"
+  },
+  "aui": {
+    "show_layer_manager": true,
+    "show_properties": true
+  }
+}

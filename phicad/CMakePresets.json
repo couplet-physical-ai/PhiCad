@@ -1,0 +1,122 @@
+{
+  "$comment": "PhiCad presets for macOS (Homebrew) and Linux (Debian/Ubuntu apt). Copied to the source root by `phicad bootstrap` (CMakePresets.json at the root is gitignored upstream; this copy is force-added). Keep in sync with cmake_common_flags() in phicad/bin/phicad.",
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "mac-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "installDir": "${sourceDir}/build/install/${presetName}",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin" },
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_PREFIX_PATH": "/opt/homebrew;/opt/homebrew/opt/openssl@3;/opt/homebrew/opt/curl;/opt/homebrew/opt/unixodbc",
+        "Python3_EXECUTABLE": "/opt/homebrew/bin/python3.13",
+        "KICAD_VERSION_EXTRA": "phicad",
+        "NGSPICE_LIB_NAME": "libngspice.0.dylib",
+        "NGSPICE_ROOT_DIR": "/opt/homebrew",
+        "OCC_INCLUDE_DIR": "/opt/homebrew/include/opencascade"
+      }
+    },
+    {
+      "name": "mac-dev",
+      "displayName": "macOS dev (RelWithDebInfo + QA tests)",
+      "inherits": "mac-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "KICAD_BUILD_QA_TESTS": "ON",
+        "KICAD_BUILD_I18N": "OFF"
+      }
+    },
+    {
+      "name": "mac-debug",
+      "displayName": "macOS debug (asserts, slow)",
+      "inherits": "mac-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "KICAD_BUILD_QA_TESTS": "ON",
+        "KICAD_BUILD_I18N": "OFF"
+      }
+    },
+    {
+      "name": "mac-release",
+      "displayName": "macOS release (installable bundle)",
+      "inherits": "mac-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "KICAD_BUILD_QA_TESTS": "OFF",
+        "KICAD_BUILD_I18N": "ON"
+      }
+    },
+    {
+      "name": "linux-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "installDir": "${sourceDir}/build/install/${presetName}",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" },
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+        "KICAD_VERSION_EXTRA": "phicad"
+      }
+    },
+    {
+      "name": "linux-dev",
+      "displayName": "Linux dev (RelWithDebInfo + QA tests, distro libraries)",
+      "inherits": "linux-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "KICAD_BUILD_QA_TESTS": "ON",
+        "KICAD_BUILD_I18N": "OFF"
+      }
+    },
+    {
+      "name": "linux-debug",
+      "displayName": "Linux debug (asserts, slow)",
+      "inherits": "linux-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "KICAD_BUILD_QA_TESTS": "ON",
+        "KICAD_BUILD_I18N": "OFF"
+      }
+    },
+    {
+      "name": "linux-release",
+      "displayName": "Linux release (installable prefix)",
+      "inherits": "linux-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "KICAD_BUILD_QA_TESTS": "OFF",
+        "KICAD_BUILD_I18N": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "mac-dev", "configurePreset": "mac-dev" },
+    { "name": "mac-debug", "configurePreset": "mac-debug" },
+    { "name": "mac-release", "configurePreset": "mac-release" },
+    { "name": "linux-dev", "configurePreset": "linux-dev" },
+    { "name": "linux-debug", "configurePreset": "linux-debug" },
+    { "name": "linux-release", "configurePreset": "linux-release" }
+  ],
+  "testPresets": [
+    {
+      "name": "mac-dev",
+      "configurePreset": "mac-dev",
+      "environment": { "KICAD_RUN_FROM_BUILD_DIR": "1" },
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "linux-dev",
+      "configurePreset": "linux-dev",
+      "environment": { "KICAD_RUN_FROM_BUILD_DIR": "1" },
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}

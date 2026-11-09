@@ -1,0 +1,283 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="610" height="929" viewBox="94.00 94.00 50.81 77.45">
+<rect x="94.0" y="94.0" width="50.80510000000001" height="77.44999999999999" fill="#0A0A0A"/>
+<line x1="102.0" y1="100.0" x2="136.8051" y2="100.0" stroke="#E641DC" stroke-width="0.15"/>
+<line x1="136.8051" y1="100.0" x2="138.8051" y2="102.0" stroke="#E641DC" stroke-width="0.15"/>
+<line x1="138.8051" y1="102.0" x2="138.8051" y2="163.45" stroke="#E641DC" stroke-width="0.15"/>
+<line x1="138.8051" y1="163.45" x2="136.8051" y2="165.45" stroke="#E641DC" stroke-width="0.15"/>
+<line x1="136.8051" y1="165.45" x2="102.0" y2="165.45" stroke="#E641DC" stroke-width="0.15"/>
+<line x1="102.0" y1="165.45" x2="100.0" y2="163.45" stroke="#E641DC" stroke-width="0.15"/>
+<line x1="100.0" y1="163.45" x2="100.0" y2="102.0" stroke="#E641DC" stroke-width="0.15"/>
+<line x1="100.0" y1="102.0" x2="102.0" y2="100.0" stroke="#E641DC" stroke-width="0.15"/>
+<line x1="122.8000" y1="123.2000" x2="129.5000" y2="116.5000" stroke="#3C64F0" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SCL (B.Cu)</title></line>
+<line x1="129.5000" y1="116.5000" x2="134.9000" y2="116.5000" stroke="#3C64F0" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SCL (B.Cu)</title></line>
+<line x1="134.9000" y1="116.5000" x2="135.0351" y2="116.4800" stroke="#3C64F0" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SCL (B.Cu)</title></line>
+<line x1="113.1000" y1="119.9000" x2="113.1000" y2="123.4000" stroke="#3C64F0" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (B.Cu)</title></line>
+<line x1="113.1000" y1="123.4000" x2="113.8000" y2="124.1000" stroke="#3C64F0" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (B.Cu)</title></line>
+<line x1="115.9000" y1="120.6000" x2="115.9000" y2="119.6000" stroke="#3C64F0" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (B.Cu)</title></line>
+<line x1="115.9000" y1="119.6000" x2="115.0000" y2="118.7000" stroke="#3C64F0" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (B.Cu)</title></line>
+<line x1="115.9000" y1="121.4000" x2="116.4000" y2="121.4000" stroke="#3C64F0" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (B.Cu)</title></line>
+<line x1="116.4000" y1="121.4000" x2="119.5000" y2="124.5000" stroke="#3C64F0" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (B.Cu)</title></line>
+<line x1="114.1000" y1="124.0000" x2="114.1000" y2="123.2000" stroke="#3C64F0" stroke-width="0.15" stroke-linecap="round" opacity="0.95"><title>3V3 (B.Cu)</title></line>
+<line x1="114.1000" y1="123.2000" x2="115.9000" y2="121.4000" stroke="#3C64F0" stroke-width="0.15" stroke-linecap="round" opacity="0.95"><title>3V3 (B.Cu)</title></line>
+<line x1="109.8000" y1="114.3000" x2="113.2000" y2="117.7000" stroke="#3C64F0" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (B.Cu)</title></line>
+<line x1="113.2000" y1="117.7000" x2="113.2000" y2="119.8000" stroke="#3C64F0" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (B.Cu)</title></line>
+<line x1="117.3000" y1="116.8000" x2="122.1000" y2="112.0000" stroke="#3C64F0" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (B.Cu)</title></line>
+<line x1="122.1000" y1="112.0000" x2="126.3000" y2="112.0000" stroke="#3C64F0" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (B.Cu)</title></line>
+<line x1="126.3000" y1="112.0000" x2="126.3000" y2="109.2000" stroke="#3C64F0" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (B.Cu)</title></line>
+<line x1="126.3000" y1="109.2000" x2="129.2000" y2="106.3000" stroke="#3C64F0" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (B.Cu)</title></line>
+<line x1="129.2000" y1="106.3000" x2="134.9000" y2="106.3000" stroke="#3C64F0" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (B.Cu)</title></line>
+<line x1="134.9000" y1="106.3000" x2="135.0351" y2="106.3200" stroke="#3C64F0" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (B.Cu)</title></line>
+<line x1="113.9000" y1="150.4000" x2="107.7000" y2="156.6000" stroke="#3C64F0" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (B.Cu)</title></line>
+<line x1="107.7000" y1="156.6000" x2="107.5150" y2="156.6000" stroke="#3C64F0" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (B.Cu)</title></line>
+<line x1="113.1000" y1="119.9000" x2="113.2000" y2="119.8000" stroke="#3C64F0" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (B.Cu)</title></line>
+<line x1="113.8000" y1="124.1000" x2="114.1000" y2="124.0000" stroke="#3C64F0" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (B.Cu)</title></line>
+<line x1="121.2875" y1="121.2400" x2="121.4000" y2="121.1000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>LED_K (F.Cu)</title></line>
+<line x1="121.4000" y1="121.1000" x2="122.3000" y2="120.2000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>LED_K (F.Cu)</title></line>
+<line x1="122.3000" y1="120.2000" x2="122.3000" y2="120.1000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>LED_K (F.Cu)</title></line>
+<line x1="122.3000" y1="120.1000" x2="126.6000" y2="120.1000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>LED_K (F.Cu)</title></line>
+<line x1="126.6000" y1="120.1000" x2="127.5000" y2="121.0000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>LED_K (F.Cu)</title></line>
+<line x1="127.5000" y1="121.0000" x2="127.5000" y2="121.1000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>LED_K (F.Cu)</title></line>
+<line x1="127.5000" y1="121.1000" x2="127.4975" y2="121.2400" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>LED_K (F.Cu)</title></line>
+<line x1="125.6725" y1="121.2400" x2="125.7000" y2="121.3000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>LED_A (F.Cu)</title></line>
+<line x1="125.7000" y1="121.3000" x2="125.7000" y2="121.5000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>LED_A (F.Cu)</title></line>
+<line x1="125.7000" y1="121.5000" x2="130.8000" y2="126.6000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>LED_A (F.Cu)</title></line>
+<line x1="130.8000" y1="126.6000" x2="134.9000" y2="126.6000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>LED_A (F.Cu)</title></line>
+<line x1="134.9000" y1="126.6000" x2="135.0351" y2="126.6400" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>LED_A (F.Cu)</title></line>
+<line x1="107.7900" y1="115.0300" x2="107.9000" y2="115.1000" stroke="#EB2D28" stroke-width="0.5" stroke-linecap="round" opacity="0.95"><title>VIN (F.Cu)</title></line>
+<line x1="107.9000" y1="115.1000" x2="111.0000" y2="118.2000" stroke="#EB2D28" stroke-width="0.5" stroke-linecap="round" opacity="0.95"><title>VIN (F.Cu)</title></line>
+<line x1="111.0000" y1="118.2000" x2="110.9650" y2="118.3100" stroke="#EB2D28" stroke-width="0.5" stroke-linecap="round" opacity="0.95"><title>VIN (F.Cu)</title></line>
+<line x1="110.9650" y1="118.3100" x2="111.0000" y2="118.2000" stroke="#EB2D28" stroke-width="0.5" stroke-linecap="round" opacity="0.95"><title>VIN (F.Cu)</title></line>
+<line x1="111.0000" y1="118.2000" x2="111.0000" y2="117.8000" stroke="#EB2D28" stroke-width="0.5" stroke-linecap="round" opacity="0.95"><title>VIN (F.Cu)</title></line>
+<line x1="111.0000" y1="117.8000" x2="116.8000" y2="112.0000" stroke="#EB2D28" stroke-width="0.5" stroke-linecap="round" opacity="0.95"><title>VIN (F.Cu)</title></line>
+<line x1="116.8000" y1="112.0000" x2="128.0000" y2="112.0000" stroke="#EB2D28" stroke-width="0.5" stroke-linecap="round" opacity="0.95"><title>VIN (F.Cu)</title></line>
+<line x1="128.0000" y1="112.0000" x2="130.2000" y2="109.8000" stroke="#EB2D28" stroke-width="0.5" stroke-linecap="round" opacity="0.95"><title>VIN (F.Cu)</title></line>
+<line x1="130.2000" y1="109.8000" x2="130.2651" y2="109.7170" stroke="#EB2D28" stroke-width="0.5" stroke-linecap="round" opacity="0.95"><title>VIN (F.Cu)</title></line>
+<line x1="112.0886" y1="125.4409" x2="112.0000" y2="125.3000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SDA (F.Cu)</title></line>
+<line x1="112.0000" y1="125.3000" x2="111.6000" y2="124.9000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SDA (F.Cu)</title></line>
+<line x1="111.6000" y1="124.9000" x2="111.6000" y2="122.6000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SDA (F.Cu)</title></line>
+<line x1="111.6000" y1="122.6000" x2="112.6000" y2="121.6000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SDA (F.Cu)</title></line>
+<line x1="112.6000" y1="121.6000" x2="113.8000" y2="121.6000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SDA (F.Cu)</title></line>
+<line x1="113.8000" y1="121.6000" x2="113.8000" y2="121.0000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SDA (F.Cu)</title></line>
+<line x1="113.8000" y1="121.0000" x2="113.8281" y2="120.9339" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SDA (F.Cu)</title></line>
+<line x1="113.8281" y1="120.9339" x2="113.8000" y2="120.8000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SDA (F.Cu)</title></line>
+<line x1="113.8000" y1="120.8000" x2="113.8000" y2="120.4000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SDA (F.Cu)</title></line>
+<line x1="113.8000" y1="120.4000" x2="114.6000" y2="119.6000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SDA (F.Cu)</title></line>
+<line x1="114.6000" y1="119.6000" x2="129.3000" y2="119.6000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SDA (F.Cu)</title></line>
+<line x1="129.3000" y1="119.6000" x2="134.9000" y2="114.0000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SDA (F.Cu)</title></line>
+<line x1="134.9000" y1="114.0000" x2="135.0351" y2="113.9400" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SDA (F.Cu)</title></line>
+<line x1="107.5150" y1="159.1400" x2="107.6000" y2="159.1000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SDA (F.Cu)</title></line>
+<line x1="107.6000" y1="159.1000" x2="112.1000" y2="154.6000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SDA (F.Cu)</title></line>
+<line x1="112.1000" y1="154.6000" x2="112.1000" y2="125.5000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SDA (F.Cu)</title></line>
+<line x1="112.1000" y1="125.5000" x2="112.0886" y2="125.4409" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SDA (F.Cu)</title></line>
+<line x1="116.6806" y1="124.5289" x2="116.7000" y2="124.4000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SCL (F.Cu)</title></line>
+<line x1="116.7000" y1="124.4000" x2="116.7000" y2="123.4000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SCL (F.Cu)</title></line>
+<line x1="116.7000" y1="123.4000" x2="114.5000" y2="121.2000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SCL (F.Cu)</title></line>
+<line x1="114.5000" y1="121.2000" x2="114.5000" y2="121.0000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SCL (F.Cu)</title></line>
+<line x1="114.5000" y1="121.0000" x2="114.4781" y2="120.9339" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SCL (F.Cu)</title></line>
+<line x1="116.6806" y1="124.5289" x2="116.7000" y2="124.4000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SCL (F.Cu)</title></line>
+<line x1="116.7000" y1="124.4000" x2="116.7000" y2="124.3000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SCL (F.Cu)</title></line>
+<line x1="116.7000" y1="124.3000" x2="117.8000" y2="123.2000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SCL (F.Cu)</title></line>
+<line x1="117.8000" y1="123.2000" x2="122.8000" y2="123.2000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SCL (F.Cu)</title></line>
+<line x1="107.5150" y1="161.6800" x2="107.6000" y2="161.6000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SCL (F.Cu)</title></line>
+<line x1="107.6000" y1="161.6000" x2="116.7000" y2="152.5000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SCL (F.Cu)</title></line>
+<line x1="116.7000" y1="152.5000" x2="116.7000" y2="124.6000" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SCL (F.Cu)</title></line>
+<line x1="116.7000" y1="124.6000" x2="116.6806" y2="124.5289" stroke="#EB2D28" stroke-width="0.25" stroke-linecap="round" opacity="0.95"><title>SCL (F.Cu)</title></line>
+<line x1="112.5281" y1="122.9839" x2="112.5000" y2="122.9000" stroke="#EB2D28" stroke-width="0.15" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="112.5000" y1="122.9000" x2="112.5000" y2="122.4000" stroke="#EB2D28" stroke-width="0.15" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="112.5000" y1="122.4000" x2="113.8000" y2="122.4000" stroke="#EB2D28" stroke-width="0.15" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="113.8000" y1="122.4000" x2="113.8000" y2="122.9000" stroke="#EB2D28" stroke-width="0.15" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="113.8000" y1="122.9000" x2="113.8281" y2="122.9839" stroke="#EB2D28" stroke-width="0.15" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="113.1781" y1="120.9339" x2="113.2000" y2="120.8000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="113.2000" y1="120.8000" x2="113.2000" y2="120.0000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="113.2000" y1="120.0000" x2="113.1000" y2="119.9000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="113.8000" y1="124.1000" x2="112.9000" y2="124.1000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="112.9000" y1="124.1000" x2="112.5000" y2="123.7000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="112.5000" y1="123.7000" x2="112.5000" y2="123.1000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="112.5000" y1="123.1000" x2="112.5281" y2="122.9839" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="113.8281" y1="122.9839" x2="113.9000" y2="123.1000" stroke="#EB2D28" stroke-width="0.15" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="113.9000" y1="123.1000" x2="113.9000" y2="125.3000" stroke="#EB2D28" stroke-width="0.15" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="113.9000" y1="125.3000" x2="113.9136" y2="125.4409" stroke="#EB2D28" stroke-width="0.15" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="116.8950" y1="121.5989" x2="116.8000" y2="121.5000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="116.8000" y1="121.5000" x2="115.9000" y2="120.6000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="115.0000" y1="118.7000" x2="115.7000" y2="118.7000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="115.7000" y1="118.7000" x2="115.9000" y2="118.5000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="115.9000" y1="118.5000" x2="115.9855" y2="118.4389" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="116.8950" y1="121.5989" x2="116.8000" y2="121.5000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="116.8000" y1="121.5000" x2="116.7000" y2="121.4000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="116.7000" y1="121.4000" x2="115.9000" y2="121.4000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="119.5000" y1="124.5000" x2="118.6000" y2="124.5000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="118.6000" y1="124.5000" x2="118.5056" y2="124.5289" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="113.8281" y1="122.9839" x2="113.8000" y2="123.1000" stroke="#EB2D28" stroke-width="0.15" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="113.8000" y1="123.1000" x2="113.8000" y2="123.7000" stroke="#EB2D28" stroke-width="0.15" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="113.8000" y1="123.7000" x2="114.1000" y2="124.0000" stroke="#EB2D28" stroke-width="0.15" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="115.9000" y1="121.4000" x2="116.7000" y2="121.4000" stroke="#EB2D28" stroke-width="0.15" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="116.7000" y1="121.4000" x2="116.8000" y2="121.5000" stroke="#EB2D28" stroke-width="0.15" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="116.8000" y1="121.5000" x2="116.8950" y2="121.5989" stroke="#EB2D28" stroke-width="0.15" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="103.7700" y1="106.3200" x2="103.9000" y2="106.3000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="103.9000" y1="106.3000" x2="105.1000" y2="107.5000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="105.1000" y1="107.5000" x2="105.1000" y2="110.5000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="105.1000" y1="110.5000" x2="107.3000" y2="112.7000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="107.3000" y1="112.7000" x2="107.7000" y2="112.7000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="107.7000" y1="112.7000" x2="107.7900" y2="112.7300" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="107.7900" y1="112.7300" x2="107.9000" y2="112.7000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="107.9000" y1="112.7000" x2="108.2000" y2="112.7000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="108.2000" y1="112.7000" x2="109.8000" y2="114.3000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="113.2000" y1="119.8000" x2="113.2000" y2="120.8000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="113.2000" y1="120.8000" x2="113.1781" y2="120.9339" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="115.9855" y1="118.4389" x2="116.0000" y2="118.3000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="116.0000" y1="118.3000" x2="116.0000" y2="118.1000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="116.0000" y1="118.1000" x2="117.3000" y2="116.8000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="113.9136" y1="125.4409" x2="113.9000" y2="125.5000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="113.9000" y1="125.5000" x2="113.9000" y2="150.4000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="112.8650" y1="118.3100" x2="114.0141" y2="117.1610" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>GND (F.Cu)</title></line>
+<line x1="117.8855" y1="118.4389" x2="119.4105" y2="118.4389" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>GND (F.Cu)</title></line>
+<line x1="118.7950" y1="121.5989" x2="119.8734" y2="120.5206" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>GND (F.Cu)</title></line>
+<line x1="123.1625" y1="121.2400" x2="124.5767" y2="122.6542" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>GND (F.Cu)</title></line>
+<line x1="107.7900" y1="110.4300" x2="107.7900" y2="108.6300" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>GND (F.Cu)</title></line>
+<line x1="112.5281" y1="120.9339" x2="111.4781" y2="120.9339" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>GND (F.Cu)</title></line>
+<line x1="114.4781" y1="122.9839" x2="115.2205" y2="123.7264" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>GND (F.Cu)</title></line>
+<line x1="113.1000" y1="119.9000" x2="113.2000" y2="119.8000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="113.8000" y1="124.1000" x2="113.8000" y2="123.7000" stroke="#EB2D28" stroke-width="0.15" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="113.8000" y1="124.1000" x2="114.1000" y2="124.0000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<line x1="115.9000" y1="121.4000" x2="116.3000" y2="121.0000" stroke="#EB2D28" stroke-width="0.4" stroke-linecap="round" opacity="0.95"><title>3V3 (F.Cu)</title></line>
+<circle cx="109.8" cy="114.3" r="0.4" fill="#96A0A0"/>
+<circle cx="109.8" cy="114.3" r="0.2" fill="#1A1A1A"/>
+<circle cx="113.1" cy="119.9" r="0.4" fill="#96A0A0"/>
+<circle cx="113.1" cy="119.9" r="0.2" fill="#1A1A1A"/>
+<circle cx="113.8" cy="124.1" r="0.4" fill="#96A0A0"/>
+<circle cx="113.8" cy="124.1" r="0.2" fill="#1A1A1A"/>
+<circle cx="113.9" cy="150.4" r="0.4" fill="#96A0A0"/>
+<circle cx="113.9" cy="150.4" r="0.2" fill="#1A1A1A"/>
+<circle cx="115.0" cy="118.7" r="0.4" fill="#96A0A0"/>
+<circle cx="115.0" cy="118.7" r="0.2" fill="#1A1A1A"/>
+<circle cx="115.9" cy="120.6" r="0.4" fill="#96A0A0"/>
+<circle cx="115.9" cy="120.6" r="0.2" fill="#1A1A1A"/>
+<circle cx="115.9" cy="121.4" r="0.4" fill="#96A0A0"/>
+<circle cx="115.9" cy="121.4" r="0.2" fill="#1A1A1A"/>
+<circle cx="117.3" cy="116.8" r="0.4" fill="#96A0A0"/>
+<circle cx="117.3" cy="116.8" r="0.2" fill="#1A1A1A"/>
+<circle cx="119.5" cy="124.5" r="0.4" fill="#96A0A0"/>
+<circle cx="119.5" cy="124.5" r="0.2" fill="#1A1A1A"/>
+<circle cx="107.79" cy="108.63" r="0.4" fill="#96A0A0"/>
+<circle cx="107.79" cy="108.63" r="0.2" fill="#1A1A1A"/>
+<circle cx="111.4781" cy="120.9339" r="0.4" fill="#96A0A0"/>
+<circle cx="111.4781" cy="120.9339" r="0.2" fill="#1A1A1A"/>
+<circle cx="114.0141" cy="117.161" r="0.4" fill="#96A0A0"/>
+<circle cx="114.0141" cy="117.161" r="0.2" fill="#1A1A1A"/>
+<circle cx="115.2205" cy="123.7264" r="0.4" fill="#96A0A0"/>
+<circle cx="115.2205" cy="123.7264" r="0.2" fill="#1A1A1A"/>
+<circle cx="119.4105" cy="118.4389" r="0.4" fill="#96A0A0"/>
+<circle cx="119.4105" cy="118.4389" r="0.2" fill="#1A1A1A"/>
+<circle cx="119.8734" cy="120.5206" r="0.4" fill="#96A0A0"/>
+<circle cx="119.8734" cy="120.5206" r="0.2" fill="#1A1A1A"/>
+<circle cx="124.5767" cy="122.6542" r="0.4" fill="#96A0A0"/>
+<circle cx="124.5767" cy="122.6542" r="0.2" fill="#1A1A1A"/>
+<circle cx="122.8" cy="123.2" r="0.4" fill="#96A0A0"/>
+<circle cx="122.8" cy="123.2" r="0.2" fill="#1A1A1A"/>
+<rect x="115.485497" y="117.713914" width="1.0" height="1.45" fill="#C8A03C" rx="0.1"/>
+<rect x="117.385497" y="117.713914" width="1.0" height="1.45" fill="#C8A03C" rx="0.1"/>
+<text x="116.935497" y="116.75891399999999" font-size="0.8" fill="#FFEB3C" text-anchor="middle" dominant-baseline="central" font-family="monospace">C2</text>
+<rect x="102.92" y="102.93" width="1.7" height="1.7" fill="#C8A03C" rx="0.1"/>
+<circle cx="103.77" cy="103.78" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="103.77" cy="106.32000000000001" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="103.77" cy="106.32000000000001" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="103.77" cy="108.86" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="103.77" cy="108.86" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="103.77" cy="111.4" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="103.77" cy="111.4" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="103.77" cy="113.94" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="103.77" cy="113.94" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="103.77" cy="116.48" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="103.77" cy="116.48" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="103.77" cy="119.02" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="103.77" cy="119.02" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="103.77" cy="121.56" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="103.77" cy="121.56" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="103.77" cy="124.1" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="103.77" cy="124.1" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="103.77" cy="126.64" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="103.77" cy="126.64" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="103.77" cy="129.18" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="103.77" cy="129.18" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="103.77" cy="131.72" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="103.77" cy="131.72" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="103.77" cy="134.26" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="103.77" cy="134.26" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="103.77" cy="136.8" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="103.77" cy="136.8" r="0.5" fill="#1A1A1A"/>
+<text x="103.77" y="101.4" font-size="0.8" fill="#FFEB3C" text-anchor="middle" dominant-baseline="central" font-family="monospace">J1</text>
+<rect x="116.395039" y="120.873901" width="1.0" height="1.45" fill="#C8A03C" rx="0.1"/>
+<rect x="118.295039" y="120.873901" width="1.0" height="1.45" fill="#C8A03C" rx="0.1"/>
+<text x="117.845039" y="119.91890099999999" font-size="0.8" fill="#FFEB3C" text-anchor="middle" dominant-baseline="central" font-family="monospace">C3</text>
+<rect x="106.78999999999999" y="109.68" width="2.0" height="1.5" fill="#C8A03C" rx="0.1"/>
+<rect x="106.78999999999999" y="111.98" width="2.0" height="1.5" fill="#C8A03C" rx="0.1"/>
+<rect x="113.09" y="110.83" width="2.0" height="3.8" fill="#C8A03C" rx="0.1"/>
+<rect x="106.78999999999999" y="114.28" width="2.0" height="1.5" fill="#C8A03C" rx="0.1"/>
+<text x="110.94" y="108.23" font-size="0.8" fill="#FFEB3C" text-anchor="middle" dominant-baseline="central" font-family="monospace">U1</text>
+<rect x="134.185078" y="102.93" width="1.7" height="1.7" fill="#C8A03C" rx="0.1"/>
+<circle cx="135.035078" cy="103.78" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="135.035078" cy="106.32000000000001" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="135.035078" cy="106.32000000000001" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="135.035078" cy="108.86" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="135.035078" cy="108.86" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="135.035078" cy="111.4" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="135.035078" cy="111.4" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="135.035078" cy="113.94" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="135.035078" cy="113.94" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="135.035078" cy="116.48" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="135.035078" cy="116.48" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="135.035078" cy="119.02" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="135.035078" cy="119.02" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="135.035078" cy="121.56" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="135.035078" cy="121.56" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="135.035078" cy="124.1" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="135.035078" cy="124.1" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="135.035078" cy="126.64" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="135.035078" cy="126.64" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="135.035078" cy="129.18" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="135.035078" cy="129.18" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="135.035078" cy="131.72" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="135.035078" cy="131.72" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="135.035078" cy="134.26" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="135.035078" cy="134.26" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="135.035078" cy="136.8" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="135.035078" cy="136.8" r="0.5" fill="#1A1A1A"/>
+<text x="135.035078" y="101.4" font-size="0.8" fill="#FFEB3C" text-anchor="middle" dominant-baseline="central" font-family="monospace">J2</text>
+<rect x="106.66503900000001" y="153.21" width="1.7" height="1.7" fill="#C8A03C" rx="0.1"/>
+<circle cx="107.515039" cy="154.06" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="107.515039" cy="156.6" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="107.515039" cy="156.6" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="107.515039" cy="159.14000000000001" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="107.515039" cy="159.14000000000001" r="0.5" fill="#1A1A1A"/>
+<ellipse cx="107.515039" cy="161.68" rx="0.85" ry="0.85" fill="#C8A03C"/>
+<circle cx="107.515039" cy="161.68" r="0.5" fill="#1A1A1A"/>
+<text x="107.515039" y="151.68" font-size="0.8" fill="#FFEB3C" text-anchor="middle" dominant-baseline="central" font-family="monospace">J4</text>
+<rect x="110.46503899999999" y="117.58500000000001" width="1.0" height="1.45" fill="#C8A03C" rx="0.1"/>
+<rect x="112.365039" y="117.58500000000001" width="1.0" height="1.45" fill="#C8A03C" rx="0.1"/>
+<text x="111.915039" y="116.63" font-size="0.8" fill="#FFEB3C" text-anchor="middle" dominant-baseline="central" font-family="monospace">C1</text>
+<rect x="116.168056" y="123.828901" width="1.025" height="1.4" fill="#C8A03C" rx="0.1"/>
+<rect x="117.993056" y="123.828901" width="1.025" height="1.4" fill="#C8A03C" rx="0.1"/>
+<text x="117.593056" y="122.878901" font-size="0.8" fill="#FFEB3C" text-anchor="middle" dominant-baseline="central" font-family="monospace">R2</text>
+<rect x="111.576072" y="124.74085699999999" width="1.025" height="1.4" fill="#C8A03C" rx="0.1"/>
+<rect x="113.40107199999998" y="124.74085699999999" width="1.025" height="1.4" fill="#C8A03C" rx="0.1"/>
+<text x="113.001072" y="123.79085699999999" font-size="0.8" fill="#FFEB3C" text-anchor="middle" dominant-baseline="central" font-family="monospace">R1</text>
+<rect x="112.35305600000001" y="120.68391399999999" width="0.35" height="0.5" fill="#C8A03C" rx="0.1"/>
+<rect x="113.003056" y="120.68391399999999" width="0.35" height="0.5" fill="#C8A03C" rx="0.1"/>
+<rect x="113.653056" y="120.68391399999999" width="0.35" height="0.5" fill="#C8A03C" rx="0.1"/>
+<rect x="114.303056" y="120.68391399999999" width="0.35" height="0.5" fill="#C8A03C" rx="0.1"/>
+<rect x="114.303056" y="122.733914" width="0.35" height="0.5" fill="#C8A03C" rx="0.1"/>
+<rect x="113.653056" y="122.733914" width="0.35" height="0.5" fill="#C8A03C" rx="0.1"/>
+<rect x="113.003056" y="122.733914" width="0.35" height="0.5" fill="#C8A03C" rx="0.1"/>
+<rect x="112.35305600000001" y="122.733914" width="0.35" height="0.5" fill="#C8A03C" rx="0.1"/>
+<text x="113.518056" y="119.49391399999999" font-size="0.8" fill="#FFEB3C" text-anchor="middle" dominant-baseline="central" font-family="monospace">U2</text>
+<rect x="125.160039" y="120.53999999999999" width="1.025" height="1.4" fill="#C8A03C" rx="0.1"/>
+<rect x="126.98503899999999" y="120.53999999999999" width="1.025" height="1.4" fill="#C8A03C" rx="0.1"/>
+<text x="126.585039" y="119.58999999999999" font-size="0.8" fill="#FFEB3C" text-anchor="middle" dominant-baseline="central" font-family="monospace">R3</text>
+<rect x="128.515078" y="107.966971" width="3.5" height="3.5" fill="#C8A03C" rx="0.1"/>
+<rect x="122.76507799999999" y="107.966971" width="3.0" height="3.5" fill="#C8A03C" rx="0.1"/>
+<rect x="125.51507799999999" y="112.666971" width="3.5" height="3.5" fill="#C8A03C" rx="0.1"/>
+<text x="121.81507799999999" y="115.466971" font-size="0.8" fill="#FFEB3C" text-anchor="middle" dominant-baseline="central" font-family="monospace">J3</text>
+<rect x="120.800039" y="120.53999999999999" width="0.975" height="1.4" fill="#C8A03C" rx="0.1"/>
+<rect x="122.675039" y="120.53999999999999" width="0.975" height="1.4" fill="#C8A03C" rx="0.1"/>
+<text x="122.225039" y="119.58999999999999" font-size="0.8" fill="#FFEB3C" text-anchor="middle" dominant-baseline="central" font-family="monospace">D1</text>
+</svg>

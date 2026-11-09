@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://couplet-physical-ai.github.io/PhiCad/schemas/design-workflow-event.v1.json",
+  "title": "PhiCad design workflow event v1",
+  "description": "Transport-neutral progress emitted by the model/check/repair workflow.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "kind",
+    "message",
+    "session_id",
+    "sequence",
+    "attempt",
+    "max_attempts",
+    "data"
+  ],
+  "properties": {
+    "schema": {
+      "const": "phicad.design-workflow.event/v1"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "feedback_received",
+        "checking",
+        "check_error",
+        "validation_failed",
+        "repair_started",
+        "repair_rejected",
+        "repair_error",
+        "repair_unavailable",
+        "repair_exhausted",
+        "design_updated",
+        "validated"
+      ]
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1
+    },
+    "session_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "max_attempts": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "data": {
+      "type": "object"
+    }
+  }
+}

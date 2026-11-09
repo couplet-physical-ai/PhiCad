@@ -1,0 +1,12 @@
+{
+  "appearance": {
+    "color_theme": "phicad-altium",
+    "custom_toolbars": true
+  },
+  "aui": {
+    "properties_panel_width": 300,
+    "right_panel_width": 240,
+    "show_layer_manager": true,
+    "show_properties": true
+  }
+}

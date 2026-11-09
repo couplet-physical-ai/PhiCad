@@ -1,0 +1,150 @@
+{
+  "cases": [
+    {
+      "name": "pad-pad",
+      "report": {
+        "unconnected_items": [
+          {
+            "type": "unconnected_items",
+            "description": "Unconnected items",
+            "severity": "error",
+            "items": [
+              {
+                "uuid": "00000001-0000-4000-8000-000000000001",
+                "description": "Pad SIG of J1 on F.Cu",
+                "pos": {"x": 1.0, "y": 1.0}
+              },
+              {
+                "uuid": "00000001-0000-4000-8000-000000000002",
+                "description": "Pad SIG of J2 on F.Cu",
+                "pos": {"x": 2.0, "y": 2.0}
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {"real_open_count": 1, "zone_island_count": 0, "ambiguous_count": 0}
+    },
+    {
+      "name": "pad-track",
+      "report": {
+        "unconnected_items": [
+          {
+            "type": "unconnected_items",
+            "description": "Unconnected items",
+            "severity": "error",
+            "items": [
+              {
+                "uuid": "00000002-0000-4000-8000-000000000001",
+                "description": "Pad SIG of J1 on F.Cu",
+                "pos": {"x": 3.0, "y": 3.0}
+              },
+              {
+                "uuid": "00000002-0000-4000-8000-000000000002",
+                "description": "Track SIG on F.Cu, length 1 mm",
+                "pos": {"x": 4.0, "y": 4.0}
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {"real_open_count": 1, "zone_island_count": 0, "ambiguous_count": 0}
+    },
+    {
+      "name": "track-via",
+      "report": {
+        "unconnected_items": [
+          {
+            "type": "unconnected_items",
+            "description": "Unconnected items",
+            "severity": "error",
+            "items": [
+              {
+                "uuid": "00000003-0000-4000-8000-000000000001",
+                "description": "Track SIG on F.Cu, length 1 mm",
+                "pos": {"x": 5.0, "y": 5.0}
+              },
+              {
+                "uuid": "00000003-0000-4000-8000-000000000002",
+                "description": "Via SIG on F.Cu and B.Cu",
+                "pos": {"x": 6.0, "y": 6.0}
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {"real_open_count": 1, "zone_island_count": 0, "ambiguous_count": 0}
+    },
+    {
+      "name": "zone-island",
+      "report": {
+        "unconnected_items": [
+          {
+            "type": "unconnected_items",
+            "description": "Unconnected items",
+            "severity": "error",
+            "items": [
+              {
+                "uuid": "00000004-0000-4000-8000-000000000001",
+                "description": "Zone GND on B.Cu, priority 0",
+                "pos": {"x": 7.0, "y": 7.0}
+              },
+              {
+                "uuid": "00000004-0000-4000-8000-000000000002",
+                "description": "Track GND on B.Cu, length 1 mm",
+                "pos": {"x": 8.0, "y": 8.0}
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {"real_open_count": 0, "zone_island_count": 1, "ambiguous_count": 0}
+    },
+    {
+      "name": "isolated-copper-component",
+      "report": {
+        "unconnected_items": [],
+        "violations": [
+          {
+            "type": "isolated_copper",
+            "description": "Copper zone has isolated island",
+            "severity": "error",
+            "items": [
+              {
+                "uuid": "00000005-0000-4000-8000-000000000001",
+                "description": "Zone GND on B.Cu, priority 0",
+                "pos": {"x": 9.0, "y": 9.0}
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {"real_open_count": 0, "zone_island_count": 1, "ambiguous_count": 0}
+    },
+    {
+      "name": "ambiguous",
+      "report": {
+        "unconnected_items": [
+          {
+            "type": "unconnected_items",
+            "description": "Unconnected items",
+            "severity": "error",
+            "items": [
+              {
+                "uuid": "00000006-0000-4000-8000-000000000001",
+                "description": "Copper object A",
+                "pos": {"x": 10.0, "y": 10.0}
+              },
+              {
+                "uuid": "00000006-0000-4000-8000-000000000002",
+                "description": "Copper object B",
+                "pos": {"x": 11.0, "y": 11.0}
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {"real_open_count": 0, "zone_island_count": 0, "ambiguous_count": 1}
+    }
+  ]
+}

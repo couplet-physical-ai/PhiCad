@@ -1,0 +1,23 @@
+# PhiCad continuous development loop — one iteration per activation.
+# Installed into ~/.config/systemd/user/ by phicad/loop/install-remote.sh; driven by phicad-loop.timer.
+# The loop itself decides whether there is anything to do (PAUSE/BREAKER/backlog), so a firing
+# with nothing eligible is cheap and exits 0.
+[Unit]
+Description=PhiCad continuous development loop (one iteration)
+Documentation=file://%h/phicad-loop/repo/phicad/loop/README.md
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/phicad-loop
+EnvironmentFile=%h/phicad-loop/env
+ExecStart=/usr/bin/env python3 %h/phicad-loop/repo/phicad/loop/loop.py once
+# A shared host: the loop and everything it spawns yield to interactive work and builds.
+Nice=15
+IOSchedulingClass=idle
+# Hard ceiling: item budget (<= PHICAD_LOOP_MAX_MIN) + gates + push. The loop kills its own
+# phi run at the item budget; this is the backstop for a wedged gate.
+TimeoutStartSec=2h
+# One iteration at a time is enforced by the loop's own lock file as well.
+StandardOutput=append:%h/phicad-loop/journal.log
+StandardError=append:%h/phicad-loop/journal.log

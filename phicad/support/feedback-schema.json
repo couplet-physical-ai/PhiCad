@@ -1,0 +1,319 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:phicad:feedback-schema:1.0",
+  "title": "PhiCad structured feedback record",
+  "description": "Version 1.0 of the normalized maintainer/agent feedback record. The site issue body and a reviewed local support bundle can supply inputs, but neither is itself this record. This schema carries metadata and redacted references only; it is not a container for board, schematic, prompt, transcript, environment, or credential data.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "record_id",
+    "created_at",
+    "feedback_type",
+    "title",
+    "summary",
+    "product",
+    "version",
+    "platform",
+    "workflow",
+    "reproduction",
+    "expected",
+    "actual",
+    "diagnostics_refs",
+    "provenance",
+    "redaction_status",
+    "redaction_profile",
+    "consent"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "description": "The feedback-record contract version, independent of the PhiCad product version."
+    },
+    "record_id": {
+      "type": "string",
+      "pattern": "^fb_[A-Za-z0-9][A-Za-z0-9._-]{0,95}$",
+      "description": "Opaque local record identifier. It must not contain an email address or user content."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "feedback_type": {
+      "type": "string",
+      "enum": [
+        "bug",
+        "enhancement",
+        "docs_feedback",
+        "support",
+        "improvement_report"
+      ]
+    },
+    "title": {
+      "$ref": "#/$defs/safe_text",
+      "maxLength": 200,
+      "description": "A short, redacted issue title. Do not put a board name, customer name, secret, or design excerpt here."
+    },
+    "summary": {
+      "$ref": "#/$defs/safe_text",
+      "maxLength": 4000,
+      "description": "A concise, redacted description of the observed problem or requested change."
+    },
+    "product": {
+      "const": "PhiCad"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(?:unknown|[0-9A-Za-z][0-9A-Za-z.+_-]{0,63})$",
+      "description": "PhiCad release or build identifier, without a path or arbitrary environment dump."
+    },
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os", "arch"],
+      "properties": {
+        "os": {
+          "type": "string",
+          "enum": ["macos", "linux", "windows", "unknown"]
+        },
+        "arch": {
+          "type": "string",
+          "enum": ["arm64", "x86_64", "aarch64", "unknown"]
+        },
+        "os_version": {
+          "type": "string",
+          "pattern": "^(?:unknown|[0-9A-Za-z][0-9A-Za-z.+_ -]{0,63})$",
+          "description": "Coarse platform version only; never include a full environment dump."
+        }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["surface", "entrypoint"],
+      "properties": {
+        "surface": {
+          "type": "string",
+          "enum": ["desktop", "cli", "agent", "site", "mcp", "support_bundle"]
+        },
+        "entrypoint": {
+          "$ref": "#/$defs/safe_text",
+          "maxLength": 200,
+          "description": "A command or named workflow such as `phicad synth build`; never include its arguments when they contain user data."
+        }
+      }
+    },
+    "reproduction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["steps", "frequency"],
+      "properties": {
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/safe_text",
+            "maxLength": 1000
+          },
+          "description": "Minimal, redacted steps. Refer to an artifact by a diagnostics ref instead of pasting its contents."
+        },
+        "frequency": {
+          "type": "string",
+          "enum": ["always", "often", "intermittent", "once", "unknown", "not_applicable"]
+        },
+        "minimal_case": {
+          "$ref": "#/$defs/safe_text",
+          "maxLength": 1000,
+          "description": "A prose description of the smallest safe reproducer, not a board or schematic serialization."
+        }
+      }
+    },
+    "expected": {
+      "$ref": "#/$defs/safe_text",
+      "maxLength": 2000,
+      "description": "What the reporter expected to happen, in redacted prose."
+    },
+    "actual": {
+      "$ref": "#/$defs/safe_text",
+      "maxLength": 4000,
+      "description": "What happened, in redacted prose. Do not paste logs, prompts, paths, or design data."
+    },
+    "diagnostics_refs": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 136,
+        "oneOf": [
+          {
+            "pattern": "^(?:artifact|bundle|log):[A-Za-z0-9][A-Za-z0-9._:+-]{0,127}$"
+          },
+          {
+            "pattern": "^issue:#[1-9][0-9]{0,11}$"
+          },
+          {
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          }
+        ],
+        "description": "An opaque reference to a separately stored, already-redacted artifact. This value is never artifact content, a local filesystem path, or a URL."
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "captured_at", "collector"],
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": ["site", "support_bundle", "agent", "maintainer"]
+        },
+        "captured_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "collector": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,63}$",
+          "description": "Named emitter and its version, for example `site-feedback/1.0` or `support-bundle/1.0`."
+        },
+        "issue_url": {
+          "type": "string",
+          "pattern": "^https://github\\.com/couplet-physical-ai/PhiCad/issues/[1-9][0-9]*$",
+          "description": "The durable GitHub issue URL once a reporter has reviewed and submitted the record."
+        },
+        "parent_record_ref": {
+          "type": "string",
+          "pattern": "^record:[A-Za-z0-9][A-Za-z0-9._/-]{0,95}$"
+        }
+      }
+    },
+    "redaction_status": {
+      "type": "string",
+      "enum": ["not_run", "in_progress", "passed", "failed", "not_applicable"],
+      "description": "Redaction gate result. A record with `failed`, `not_run`, or `in_progress` must not leave the local machine."
+    },
+    "redaction_profile": {
+      "type": "string",
+      "enum": ["feedback_text", "default_support_bundle", "custom_maintainer_review", "not_applicable"],
+      "description": "The named redaction policy used before this record was emitted."
+    },
+    "consent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "feedback_submission",
+        "diagnostics",
+        "improvement_report",
+        "recorded_at"
+      ],
+      "properties": {
+        "feedback_submission": {
+          "type": "boolean",
+          "description": "Explicit permission to prepare or submit this report to the private GitHub repository. It is not implied by opening the feedback UI."
+        },
+        "diagnostics": {
+          "type": "boolean",
+          "description": "Separate opt-in permission to attach the referenced, redacted diagnostics. False means no diagnostics are attached."
+        },
+        "improvement_report": {
+          "type": "boolean",
+          "description": "Separate, unchecked opt-in for using this report as a product-improvement report. It must never be inferred from bug or support consent."
+        },
+        "recorded_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "safe_text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000,
+      "allOf": [
+        {
+          "not": {
+            "pattern": "(?:[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Pp][Aa][Ss][Ss][Pp][Hh][Rr][Aa][Ss][Ee]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Tt][Oo][Kk][Ee][Nn]|[Aa][Pp][Ii][-_ ]?[Kk][Ee][Yy]|[Cc][Ll][Ii][Ee][Nn][Tt][-_ ]?[Ss][Ee][Cc][Rr][Ee][Tt])\\s*[:=]\\s*\\S{4,}|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]\\s*:\\s*[Bb][Ee][Aa][Rr][Ee][Rr]\\s+\\S+|-----BEGIN [^-\\r\\n]{1,80} PRIVATE KEY-----|ghp_[A-Za-z0-9_]{12,}|github_pat_[A-Za-z0-9_]{12,}|AKIA[A-Z0-9]{16}|sk-[A-Za-z0-9_-]{12,}"
+          }
+        },
+        {
+          "not": {
+            "pattern": "\\([ \\t]*(?:kicad_pcb|kicad_sch|footprint|lib_symbols|segment|wire|gr_rect)\\b|(?:kicad_pcb|kicad_sch)\\s*\\("
+          }
+        },
+        {
+          "pattern": "^[^\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]*$"
+        }
+      ],
+      "description": "Redacted prose only. This rejects credential assignments, common key shapes, serialized KiCad/design fragments, and unexpected control characters; emit a diagnostics ref instead."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "feedback_type": {
+            "const": "improvement_report"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "consent": {
+            "properties": {
+              "improvement_report": {
+                "const": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "consent": {
+            "properties": {
+              "diagnostics": {
+                "const": true
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "redaction_status": {
+            "const": "passed"
+          },
+          "diagnostics_refs": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "consent": {
+            "properties": {
+              "diagnostics": {
+                "const": false
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "diagnostics_refs": {
+            "maxItems": 0
+          }
+        }
+      }
+    }
+  ]
+}

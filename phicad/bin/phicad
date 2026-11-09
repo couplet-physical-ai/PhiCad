@@ -1,0 +1,1644 @@
+#!/usr/bin/env bash
+#
+# phicad — one entry point for working on the PhiCad KiCad fork (PhiCad).
+#
+# Everything an agent or human needs for the edit → build → test loop, plus
+# upstream syncing. Run `phicad help` for the command list.
+#
+# Design rules:
+#   * every command is idempotent and safe to re-run;
+#   * all network commands run with the LLM proxy env stripped
+#     (that proxy rejects github/gitlab/homebrew traffic);
+#   * nothing here modifies upstream KiCad source files.
+
+set -euo pipefail
+
+# ---------------------------------------------------------------- environment
+
+SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+# Host platform decides where dependencies come from (Homebrew vs apt), the build-tree name
+# (build/mac-dev vs build/linux-dev) and how the built binaries are laid out (app bundle vs
+# flat). PHICAD_PLATFORM overrides detection for tests and cross-inspection.
+case "${PHICAD_PLATFORM:-$(uname -s)}" in
+  Darwin|mac) PLATFORM=mac ;;
+  Linux|linux) PLATFORM=linux ;;
+  *)           PLATFORM=other ;;
+esac
+
+# Parallelism: every core on macOS. On Linux, also capped at half the RAM in GB — a pcbnew
+# translation unit peaks near 2 GB, and a 16 GB / 10-core box at -j10 swaps itself to a halt.
+default_jobs() {
+  local n mem
+  case "$PLATFORM" in
+    mac)   sysctl -n hw.ncpu 2>/dev/null || echo 8 ;;
+    linux) n=$(nproc 2>/dev/null || echo 4)
+           mem=$(awk '/MemTotal/ {print int($2/1024/1024)}' /proc/meminfo 2>/dev/null || echo 8)
+           (( mem / 2 < n )) && n=$(( mem / 2 ))
+           (( n < 1 )) && n=1
+           echo "$n" ;;
+    *)     echo 4 ;;
+  esac
+}
+
+BUILD="${PHICAD_BUILD:-$SRC/build/${PLATFORM}-dev}"
+JOBS="${PHICAD_JOBS:-$(default_jobs)}"
+BREW_PREFIX="${HOMEBREW_PREFIX:-/opt/homebrew}"
+UPSTREAM_URL="https://gitlab.com/kicad/code/kicad.git"
+
+# A build tree describes its own layout: macOS builds always produce PhiCad.app, Linux builds
+# keep binaries flat (build/kicad/kicad-cli, build/pcbnew/_pcbnew.kiface). Reading the layout
+# from the tree rather than from uname keeps a macOS tree inspectable from Linux (CI fixtures,
+# rsync'd artifacts) and the other way round.
+tree_layout() {
+  if [[ "$PLATFORM" == mac || -d "$BUILD/kicad/PhiCad.app" ]]; then echo bundle; else echo flat; fi
+}
+
+# Path of a built executable in the current build tree: built_bin kicad-cli | built_bin PhiCad.
+# (The Linux GUI executable keeps upstream's name, kicad; only the macOS bundle is renamed.)
+built_bin() {
+  if [[ "$(tree_layout)" == bundle ]]; then
+    printf '%s/kicad/PhiCad.app/Contents/MacOS/%s\n' "$BUILD" "$1"
+  elif [[ "$1" == PhiCad ]]; then
+    printf '%s/kicad/kicad\n' "$BUILD"
+  else
+    printf '%s/kicad/%s\n' "$BUILD" "$1"
+  fi
+}
+
+# Homebrew formulae needed to configure + build KiCad on macOS arm64.
+BREW_DEPS=(
+  cmake ninja ccache pkgconf clang-format
+  boost wxwidgets glm libgit2 ngspice opencascade protobuf nng
+  swig unixodbc curl python@3.13 python-tk@3.13
+  cairo pixman harfbuzz fontconfig freetype zstd gettext
+)
+
+# Run a command with the LLM proxy env removed (see phicad/README.md).
+noproxy() {
+  env -u HTTPS_PROXY -u https_proxy -u ALL_PROXY -u all_proxy \
+      -u HTTP_PROXY -u http_proxy -u ALL_PROXY "$@"
+}
+
+log()  { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
+warn() { printf '\033[1;33mwarn:\033[0m %s\n' "$*" >&2; }
+die()  { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
+
+need_build_dir() {
+  [[ -f "$BUILD/build.ninja" ]] || die "no build tree at $BUILD — run: phicad configure"
+}
+
+# ------------------------------------------------------------------ configure
+
+# Flags that make a stock Homebrew macOS environment work. The three -D
+# overrides at the end are mandatory workarounds, not preferences:
+#   NGSPICE_LIB_NAME  cmake/Findngspice.cmake defaults to the Linux name
+#                     libngspice.so.0 on every UNIX, including macOS.
+#   NGSPICE_ROOT_DIR  keeps the finder inside the Homebrew prefix.
+#   OCC_INCLUDE_DIR   cmake/FindOCC.cmake is a legacy module that only searches
+#                     /usr, /usr/local and /opt, never /opt/homebrew/include/opencascade.
+# On Linux (Debian/Ubuntu via phicad/bin/bootstrap-debian.sh) every finder works with the
+# distro defaults — libngspice.so.0, /usr/include/opencascade, system python3 — so only the
+# generator, ccache and the version tag are set. Keep this list short on purpose: what the
+# distro archive finds unaided is what a Linux container will find too.
+cmake_common_flags() {
+  case "$PLATFORM" in
+    mac) cat <<EOF
+-G Ninja
+-DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+-DCMAKE_C_COMPILER_LAUNCHER=ccache
+-DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+-DCMAKE_PREFIX_PATH=$BREW_PREFIX;$BREW_PREFIX/opt/openssl@3;$BREW_PREFIX/opt/curl;$BREW_PREFIX/opt/unixodbc
+-DPython3_EXECUTABLE=$BREW_PREFIX/bin/python3.13
+-DKICAD_VERSION_EXTRA=phicad
+-DNGSPICE_LIB_NAME=libngspice.0.dylib
+-DNGSPICE_ROOT_DIR=$BREW_PREFIX
+-DOCC_INCLUDE_DIR=$BREW_PREFIX/include/opencascade
+EOF
+    ;;
+    linux) cat <<EOF
+-G Ninja
+-DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+-DCMAKE_C_COMPILER_LAUNCHER=ccache
+-DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+-DKICAD_VERSION_EXTRA=phicad
+EOF
+    ;;
+    *) die "unsupported build host $(uname -s): phicad builds on macOS (Homebrew) and Debian/Ubuntu (apt)" ;;
+  esac
+}
+
+stage_release_ngspice() {
+  # eeschema's upstream macOS install rule copies every *.dylib below the directory containing
+  # NGSPICE_LIBRARY. Homebrew exposes libngspice from its broad /opt/homebrew/lib prefix, so using
+  # that path would pull unrelated libraries (and fragile relative Cellar links) into PlugIns/sim.
+  # Give Release configuration a narrow, materialized input directory instead. Development builds
+  # keep linking Homebrew directly and pay no copy cost.
+  local prefix library models stage
+  prefix=$(brew --prefix libngspice 2>/dev/null || brew --prefix ngspice 2>/dev/null || true)
+  [[ -n "$prefix" ]] || die "libngspice Homebrew prefix not found — run: phicad bootstrap"
+  library="$prefix/lib/libngspice.0.dylib"
+  models="$prefix/lib/ngspice"
+  [[ -f "$library" ]] || die "libngspice runtime not found at $library"
+  [[ -d "$models" ]] || die "ngspice codemodel directory not found at $models"
+
+  stage="$BUILD/phicad-release-deps/ngspice"
+  rm -rf -- "$stage"
+  mkdir -p "$stage/ngspice"
+  cp -L "$library" "$stage/libngspice.0.dylib"
+  cp -RL "$models/." "$stage/ngspice/"
+  printf '%s\n' "$stage/libngspice.0.dylib"
+}
+
+cmd_configure() {
+  # NOTE on array expansions in this script: macOS ships bash 3.2, where
+  # "${arr[@]}" on an EMPTY array is an "unbound variable" error under `set -u`.
+  # Always expand possibly-empty arrays as "${arr[@]+"${arr[@]}"}".
+  local flavor="${1:-dev}" extra=() release_deps=()
+  local release_prefix="$SRC/build/install/${PLATFORM}-release"
+  case "$flavor" in
+    dev)     extra=(-DCMAKE_BUILD_TYPE=RelWithDebInfo -DKICAD_BUILD_QA_TESTS=ON -DKICAD_BUILD_I18N=OFF) ;;
+    debug)   extra=(-DCMAKE_BUILD_TYPE=Debug -DKICAD_BUILD_QA_TESTS=ON -DKICAD_BUILD_I18N=OFF)
+             BUILD="${PHICAD_BUILD:-$SRC/build/${PLATFORM}-debug}" ;;
+    release) extra=(-DCMAKE_BUILD_TYPE=Release -DKICAD_BUILD_QA_TESTS=OFF -DKICAD_BUILD_I18N=ON
+                     "-DCMAKE_INSTALL_PREFIX=$release_prefix")
+             BUILD="${PHICAD_BUILD:-$SRC/build/${PLATFORM}-release}" ;;
+    *) die "unknown flavor '$flavor' (use: dev | debug | release)" ;;
+  esac
+
+  command -v cmake >/dev/null || die "cmake missing — run: phicad bootstrap"
+  # The ngspice staging exists for the macOS bundle's install rule; Linux links the distro
+  # library in place.
+  if [[ "$flavor" == "release" && "$PLATFORM" == mac ]]; then
+    release_deps=("-DNGSPICE_LIBRARY=$(stage_release_ngspice)")
+  fi
+  log "configuring $flavor build in $BUILD"
+  # shellcheck disable=SC2046,SC2086
+  cmake -S "$SRC" -B "$BUILD" $(cmake_common_flags) "${extra[@]}" "${@:2}" \
+    "${release_deps[@]+"${release_deps[@]}"}"
+
+  # clangd / IDE convenience: keep a compile_commands.json at the source root.
+  ln -sf "$BUILD/compile_commands.json" "$SRC/compile_commands.json"
+  log "configured. next: phicad build"
+}
+
+# ---------------------------------------------------------------- build / run
+
+cmd_build() {
+  # A .tsx design is a tscircuit circuit and goes to the TypeScript core; see phicad/core/.
+  if [[ "${1:-}" == *.tsx && -f "${1:-}" ]]; then
+    shift 0; exec "$SRC/phicad/core/cli.mjs" build "$@"
+  fi
+  # `phicad build design.json` means "compile this design", not "build a ninja target called
+  # design.json". Both readings are legitimate for the word build, so dispatch on the
+  # argument: a .json file is a design, anything else is a target.
+  if [[ "${1:-}" == *.json && -f "${1:-}" ]]; then
+    local design="$1"; shift
+    local out=""
+    if [[ "${1:-}" == "-o" || "${1:-}" == "--output" ]]; then shift; out="${1:-}"; shift || true; fi
+    [[ -n "$out" ]] || out="$(dirname "$design")/$(basename "${design%.json}")-out"
+    exec "$0" synth build "$design" -o "$out" "$@"
+  fi
+  need_build_dir
+  if [[ $# -eq 0 ]]; then
+    log "building everything in $BUILD (-j$JOBS)"
+    ninja -C "$BUILD" -j "$JOBS"
+  else
+    local -a targets=("$@")
+    # `phicad build headless`: everything kicad-cli, the MCP server and the agents load, and
+    # nothing the GUI needs. kicad-cli dlopens a kiface per command family (pcb -> pcbnew,
+    # sch -> eeschema, which loads cvpcb for ERC, gerber -> gerbview); a bare `build kicad-cli`
+    # runs `version` and nothing else. Measured on Debian: 880 + 1422 + 83 steps.
+    if [[ "${targets[0]}" == "headless" ]]; then
+      targets=(kicad-cli pcbnew_kiface eeschema_kiface cvpcb_kiface gerbview_kiface "${targets[@]:1}")
+    fi
+    # Run-from-build-dir mode reads the IPC schemas from $BUILD/schemas, which only the
+    # `api_schema_build_copy` ALL-target stages. A narrow `phicad build kicad-cli` (the usual
+    # first target on a fresh host) would otherwise log "schema file ... not found" on every
+    # run. It is a copy step: seconds, idempotent, present on every platform.
+    local t need_schemas=0
+    for t in "${targets[@]}"; do
+      case "$t" in kicad-cli|kicad|*_kiface) need_schemas=1 ;; esac
+    done
+    # (a file grep, not `ninja -t targets | grep -q`: under pipefail ninja's SIGPIPE from an early
+    # grep exit turns a found target into a false answer)
+    if (( need_schemas )) && grep -q '^build api_schema_build_copy:' "$BUILD/build.ninja" 2>/dev/null; then
+      targets+=(api_schema_build_copy)
+    fi
+    log "building targets: ${targets[*]} (-j$JOBS)"
+    ninja -C "$BUILD" -j "$JOBS" "${targets[@]}"
+  fi
+}
+
+cache_value() {
+  local key="$1"
+  sed -n "s/^${key}:[^=]*=//p" "$BUILD/CMakeCache.txt" | head -1
+}
+
+# Install into a known, disposable prefix and launch the installed CLI without
+# build-tree overrides. KiCad's macOS install destinations are absolute at
+# configure time, so `cmake --install --prefix` cannot safely redirect them.
+cmd_install() {
+  [[ "$(uname -s)" == "Darwin" ]] || die "phicad install is currently qualified only on macOS"
+  BUILD="${PHICAD_BUILD:-$SRC/build/mac-release}"
+  need_build_dir
+  [[ -f "$BUILD/CMakeCache.txt" ]] || die "no CMake cache at $BUILD — run: phicad configure release"
+
+  local expected="$SRC/build/install/mac-release"
+  local build_type prefix qa
+  build_type="$(cache_value CMAKE_BUILD_TYPE)"
+  prefix="$(cache_value CMAKE_INSTALL_PREFIX)"
+  qa="$(cache_value KICAD_BUILD_QA_TESTS)"
+  [[ "$build_type" == "Release" && "$qa" == "OFF" ]] \
+    || die "$BUILD is not a Release build — run: phicad configure release && phicad build"
+  [[ "$prefix" == "$expected" ]] \
+    || die "unsafe install prefix '$prefix' (expected '$expected') — re-run: phicad configure release"
+  [[ ! -L "$SRC/build" && ! -L "$SRC/build/install" && ! -L "$expected" ]] \
+    || die "refusing to clean a symlinked install prefix under $SRC/build"
+
+  # The build-tree bundle points SharedSupport back to the build root so Finder launches work
+  # without KICAD_RUN_FROM_BUILD_DIR. That development-only link must never be copied into the
+  # relocatable bundle, and the AI View install step creates the real destination before CMake
+  # copies PhiCad.app. Remove only the exact link the build owns; refuse any surprising target.
+  local build_shared_support="$BUILD/kicad/PhiCad.app/Contents/SharedSupport"
+  if [[ -L "$build_shared_support" ]]; then
+    [[ "$(readlink "$build_shared_support")" == "../../.." ]] \
+      || die "refusing unexpected build SharedSupport link at $build_shared_support"
+    rm -- "$build_shared_support"
+  fi
+
+  log "cleaning release staging prefix $expected"
+  rm -rf -- "$expected"
+  log "installing release bundle from $BUILD"
+  cmake --install "$BUILD"
+
+  local py
+  py="$(command -v python3.13 || command -v python3 || true)"
+  [[ -n "$py" ]] || die "python3 is required to validate the installed bundle"
+  "$py" "$SRC/phicad/bin/release_smoke.py" "$expected/PhiCad.app"
+}
+
+cmd_targets() {
+  need_build_dir
+  # phony targets are the human-usable names (libraries, executables, meta targets)
+  local list
+  list=$(ninja -C "$BUILD" -t targets rule phony 2>/dev/null | sed 's/:.*//' \
+         | grep -vE '^(cmake_object_order_depends_target_|edit_cache|rebuild_cache)' | sort -u)
+  if [[ $# -eq 0 ]]; then
+    printf '%s\n' "$list"
+  else
+    printf '%s\n' "$list" | grep -i -- "$1" || true
+  fi
+}
+
+# Run a built binary out of the build tree (no install needed).
+cmd_run() {
+  need_build_dir
+  local what="${1:-kicad-cli}"; shift || true
+  local bin
+  case "$what" in
+    kicad-cli|cli)  bin="$(built_bin kicad-cli)" ;;
+    kicad|phicad)   bin="$(built_bin PhiCad)" ;;      # flat trees: build/<plat>-dev/kicad/kicad
+    *)             bin="$(find "$BUILD" -maxdepth 5 -type f -perm -u+x -name "$what" | head -1)" ;;
+  esac
+  [[ -n "${bin:-}" && -x "$bin" ]] || die "binary '$what' not found in $BUILD — build it first"
+  KICAD_RUN_FROM_BUILD_DIR=1 "$bin" "$@"
+}
+
+# -------------------------------------------------------- AI / automation
+
+# A checkout without its own build tree is the norm here, not the exception: worktrees are
+# cheap, a build tree is 3.5 h and ~16 GB, so people work in several worktrees and build in
+# one.  When a prerequisite is missing locally, point at the sibling worktree that has it
+# instead of telling the user to rebuild something they already have -- "run: phicad mcp
+# setup" while a working venv sits next door is how a gate gets ignored.
+#
+# Only ever a SUGGESTION printed by `phicad check` / `phicad doctor`; nothing is used
+# implicitly, because silently borrowing another worktree's build would make results depend
+# on state outside this checkout.
+sibling_worktrees() {
+  git -C "$SRC" worktree list --porcelain 2>/dev/null \
+    | awk '/^worktree /{print $2}' | grep -v "^$SRC\$" || true
+}
+
+# find_sibling <relative-path> -> prints the first sibling worktree containing it
+find_sibling() {
+  local rel="$1" wt
+  while IFS= read -r wt; do
+    [[ -n "$wt" && -e "$wt/$rel" ]] && { printf '%s\n' "$wt/$rel"; return 0; }
+  done < <(sibling_worktrees)
+  return 1
+}
+
+VENV="${PHICAD_VENV:-$SRC/build/venv}"
+MCP_VENV="${PHICAD_MCP_VENV:-$SRC/build/mcp-venv}"
+# Socket contract (verified against the code):
+#   server side: `kicad-cli api-server --socket` takes a PLAIN filesystem path
+#     (common/api/api_server.cpp:113 assigns it to a wxFileName and prepends
+#     ipc:// itself at :159).
+#   client side: kipy reads KICAD_API_SOCKET verbatim and expects the ipc://
+#     URL form (site-packages/kipy/kicad.py:_default_socket_path).
+API_SOCKET_PATH_DEFAULT="/tmp/phicad-api.sock"
+API_SOCKET_DEFAULT="ipc://$API_SOCKET_PATH_DEFAULT"
+
+# Python env for driving the fork: kicad-python (kipy) IPC client + s-expression
+# tooling. Lives under build/ (gitignored); safe to delete and recreate.
+cmd_venv() {
+  # macOS: the Homebrew 3.13 (Apple's python3 has no usable Tk and no headers). Linux: the
+  # distro python3 — whichever 3.x it is — with python3-venv installed by bootstrap.
+  local py
+  if [[ "$PLATFORM" == mac ]]; then
+    py="$BREW_PREFIX/bin/python3.13"
+    [[ -x "$py" ]] || die "python3.13 missing — run: phicad bootstrap"
+  else
+    py="$(command -v python3 || true)"
+    [[ -n "$py" ]] || die "python3 missing — run: phicad bootstrap"
+    "$py" -c 'import venv, ensurepip' 2>/dev/null || die "python3-venv missing — run: phicad bootstrap"
+  fi
+  if [[ ! -x "$VENV/bin/python" ]]; then
+    log "creating venv at $VENV"
+    "$py" -m venv "$VENV"
+  fi
+  # JLC2KiCadLib (MIT) is the parts backend; easyeda2kicad (AGPL-3.0) is only the
+  # fallback fetch_part.py warns about and is dropped from this list after one
+  # release -- see phicad/parts/README.md.
+  log "installing/upgrading automation packages (proxy-safe)"
+  noproxy "$VENV/bin/pip" install --quiet --upgrade pip
+  noproxy "$VENV/bin/pip" install --quiet --upgrade \
+    kicad-python kicad-skip kiutils kicad-tools JLC2KiCadLib easyeda2kicad pillow pypdfium2 grpcio-tools
+  # PyPI kipy is generated from upstream protos and lacks this fork's schematic
+  # commands (GetSchematicNetlist, GetSchematicHierarchy, ...).  Instead of
+  # regenerating kipy, compile the fork's proto tree to ONE descriptor-set file;
+  # phicad/pylib/sch_api.py loads it into a private descriptor pool at runtime
+  # and sends fork messages through kipy's own transport.  Rebuild-safe: the
+  # .desc is derived entirely from api/proto, so rerunning `phicad venv` after
+  # a proto change refreshes it.
+  # board_types.proto is included for messages PyPI kipy DROPPED but the fork
+  # still sends (kipy 0.8 lost ReferencePoint; board_context.install_fork_compat
+  # falls back to the dynamic class from this set).
+  log "compiling fork API descriptor set (api/proto -> venv/phicad-api.desc)"
+  "$VENV/bin/python" -m grpc_tools.protoc -I "$SRC/api/proto" \
+    --descriptor_set_out="$VENV/phicad-api.desc" --include_imports \
+    "$SRC/api/proto/schematic/schematic_commands.proto" \
+    "$SRC/api/proto/board/board_types.proto" \
+    "$SRC/api/proto/common/commands/project_commands.proto" \
+    "$SRC/api/proto/board/board_commands.proto"
+  "$VENV/bin/python" - <<'EOF'
+import importlib.metadata as md
+# pillow is what turns AI View's PCB/schematic/3D/BOM renders into visible pictures; without
+# it every view tab reports "the render succeeded" and shows nothing.
+for p in ("kicad-python", "kicad-skip", "kiutils", "kicad-tools", "JLC2KiCadLib",
+          "easyeda2kicad", "pillow", "pypdfium2"):
+    print(f"  {p:14} {md.version(p)}")
+EOF
+  log "venv ready. use: phicad py <script.py> (KICAD_API_SOCKET preset)"
+}
+
+# Run the fork's headless protobuf IPC API server (kicad/cli/command_api_server.cpp).
+# Clients (kipy, MCP servers) find it via KICAD_API_SOCKET.
+#   phicad api-server [project-or-file] [--socket ipc:///path.sock]
+# Install the AI View plugin into the user's KiCad plugin directory.
+#
+# Two non-obvious requirements, both learned the hard way:
+#  * the destination must be a REAL directory, not a symlink into the repo -- wxDir::Traverse
+#    does not follow symlinked directories, so a symlinked plugin is never discovered and the
+#    toolbar button silently never appears;
+#  * because it is therefore a copy, the launcher cannot find the repo by walking up, so the
+#    interpreter path is recorded in a `venv-path` file.  Without it the launcher falls back to
+#    Apple's /usr/bin/python3, which has Tk 8.5 (hangs instead of drawing, so the window opens
+#    blank) and no kipy (cannot read the board).
+cmd_ai_view_install() {
+  local src="$SRC/phicad/plugins/ai-view"
+  # $VENV, not a second hardcoded path: it already honours PHICAD_VENV, and hardcoding here
+  # meant the installer failed with "run: phicad venv" on any worktree whose build tree lives
+  # elsewhere -- which is every worktree but one.
+  local py="$VENV/bin/python"
+  local ver dest
+
+  [[ -d "$src" ]] || die "plugin source not found: $src"
+  [[ -x "$py" ]] || die "venv python not found: $py (run: phicad venv)"
+
+  # KiCad looks under ~/Documents/KiCad/<major.minor>/plugins/.
+  # `set -e` is on, so a missing kicad-cli here aborted the whole install with exit 127
+  # before the `${ver:-10.99}` fallback could ever apply.  Guard the probe instead, and
+  # honour PHICAD_KICAD_CLI so a worktree without its own build tree can still install.
+  local cli="${PHICAD_KICAD_CLI:-$(built_bin kicad-cli)}"
+  ver=""
+  if [[ -x "$cli" ]]; then
+    ver="$("$cli" version 2>/dev/null | sed -n 's/^\([0-9]*\.[0-9]*\).*/\1/p' | head -1 || true)"
+  fi
+  ver="${ver:-10.99}"
+  dest="$HOME/Documents/KiCad/$ver/plugins/ai-view"
+
+  log "installing AI View -> $dest"
+  rm -rf "$dest"
+  mkdir -p "$(dirname "$dest")"
+  cp -R "$src" "$dest"        # a real directory: wxDir::Traverse skips symlinked dirs
+  rm -rf "$dest/__pycache__"
+  printf '%s\n' "$py" > "$dest/venv-path"
+  # Where this copy came from.  The plugin needs it to find phicad/synth for /design and
+  # /synth, and it cannot be inferred: the installed copy is a real directory outside the
+  # repo (wxDir::Traverse skips symlinks), and guessing from venv-path lands on whichever
+  # checkout happens to own the build tree, which is routinely a different one.
+  printf '%s\n' "$SRC" > "$dest/repo-path"
+  chmod +x "$dest/ai_view.sh"
+
+  # Prove the recorded interpreter is actually usable, so a broken install fails HERE and not
+  # as a blank window three clicks later.
+  if "$py" - <<'PYVET' >/dev/null 2>&1
+import sys, tkinter
+sys.exit(0 if tkinter.TkVersion >= 8.6 else 3)
+PYVET
+  then
+    log "interpreter OK: $py (Tk $("$py" -c 'import tkinter;print(tkinter.TkVersion)'))"
+  else
+    die "recorded interpreter has Tk < 8.6, which hangs on macOS: $py"
+  fi
+
+  "$py" -c 'import kipy' 2>/dev/null \
+    && log "kipy OK" \
+    || warn "kipy missing in $py -- run: phicad/bin/regen-kipy-proto"
+
+  # Without pillow every view tab renders fine and then displays nothing but a path, which
+  # reads as "the render is broken".  Warn here rather than at click time.
+  "$py" -c 'import PIL.ImageTk' 2>/dev/null \
+    && log "pillow OK (renders will display)" \
+    || warn "pillow missing in $py -- PCB/schematic/3D/BOM views cannot display; run: phicad venv"
+
+  log "done. Restart PhiCad, then look for the AI View button in the PCB editor toolbar."
+}
+
+# ------------------------------------------------------------------- profiles
+
+# Seed the per-user KiCad settings tree from phicad/resources/profiles/<name>/.
+# A separate script because the work is JSON read-modify-write, which bash 3.2
+# cannot do safely, and because `phicad profile capture` has to round-trip the
+# same key set back into the repo.
+# Agent View as a web page: Agent View's desktop UI is Tk, so the browser panel is served
+# over loopback with a one-run token.  Uses the plugin venv because it needs kipy for live
+# board context and kicad-cli for renders.
+cmd_web_view() {
+  local tool="$SRC/phicad/plugins/ai-view/web_view.py"
+  local py="$VENV/bin/python"
+  [[ -f "$tool" ]] || die "Agent View web server not found at $tool"
+  # No argument is legitimate: web_view.py then discovers the board from its cwd.
+  [[ -x "$py" ]] || py=python3     # renders still work; live IPC context will not
+  export PHICAD_KICAD_CLI="${PHICAD_KICAD_CLI:-$(built_bin kicad-cli)}"
+  exec "$py" "$tool" "$@"
+}
+
+cmd_profile() {
+  local tool="$SRC/phicad/bin/phicad-profile"
+  [[ -x "$tool" ]] || die "phicad-profile not found at $tool"
+  exec "$tool" "$@"
+}
+
+cmd_api_server() {
+  need_build_dir
+  local sock="$API_SOCKET_PATH_DEFAULT" args=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --socket) [[ $# -ge 2 ]] || die "--socket needs a path"; sock="$2"; shift 2 ;;
+      *) args+=("$1"); shift ;;
+    esac
+  done
+  sock="${sock#ipc://}"   # accept either form; server wants the plain path
+  local cli="$(built_bin kicad-cli)"
+  [[ -x "$cli" ]] || die "kicad-cli not built — run: phicad build kicad-cli"
+  log "starting IPC API server on ipc://$sock (ctrl-c to stop)"
+  log "clients: export KICAD_API_SOCKET=ipc://$sock"
+  KICAD_RUN_FROM_BUILD_DIR=1 exec "$cli" api-server --socket "$sock" \
+    "${args[@]+"${args[@]}"}"
+}
+
+# Export the resolved layout to python entry points so every surface (bash, MCP server,
+# phicad-tool, doctor) agrees on one build tree even when source and build live apart.
+export_layout() {
+  export PHICAD_REPO="${PHICAD_REPO:-$SRC}"
+  export PHICAD_BUILD="$BUILD"
+  export PHICAD_VENV="$VENV"
+  export PHICAD_MCP_VENV="$MCP_VENV"
+  export PHICAD_KICAD_CLI="${PHICAD_KICAD_CLI:-$(built_bin kicad-cli)}"
+}
+
+# The MCP server's whole tool surface from a shell: `phicad tool list|describe|call|docs`.
+# Same functions, same result JSON, exit 0/1 = result.ok (phicad/mcp/phicad_tool.py).
+cmd_tool() {
+  [[ -x "$MCP_VENV/bin/python" ]] || die "no MCP venv — run: phicad mcp setup"
+  export_layout
+  exec "$MCP_VENV/bin/python" "$SRC/phicad/mcp/phicad_tool.py" "$@"
+}
+
+# Per-project git history: a KiCad project directory is its own repository, every agent
+# or editor change is journaled (.phicad/journal.jsonl) and snapshotted.
+#   phicad project init|status|snapshot|log|diff|restore|undo|tag|journal|watch <project|file> ...
+# `diff` runs the fork's own `pcb/sch diff` on the two extracted revisions as well as the
+# git stat, which is why export_layout runs first: the module resolves kicad-cli from
+# PHICAD_KICAD_CLI / PHICAD_BUILD and degrades with a reason when neither is built.
+cmd_project() {
+  local tool="$SRC/phicad/pylib/project_history.py"
+  [[ -f "$tool" ]] || die "project history module not found at $tool"
+  export_layout
+  exec python3 "$tool" "$@"
+}
+
+# MCP server lifecycle: setup (mcp-venv), register (~/.pi/agent/mcp.json), doctor, serve,
+# selftest.  Everything under phicad/mcp; this is only the front door.
+cmd_mcp() {
+  local sub="${1:-help}"; shift || true
+  export_layout
+  case "$sub" in
+    setup)    exec bash "$SRC/phicad/mcp/setup.sh" "$@" ;;
+    register) exec python3 "$SRC/phicad/mcp/register.py" \
+                --build "$BUILD" --venv "$VENV" --mcp-venv "$MCP_VENV" "$@" ;;
+    doctor)   exec python3 "$SRC/phicad/mcp/doctor.py" "$@" ;;
+    serve)    [[ -x "$MCP_VENV/bin/python" ]] || die "no MCP venv — run: phicad mcp setup"
+              exec "$MCP_VENV/bin/python" "$SRC/phicad/mcp/server.py" "$@" ;;
+    selftest) [[ -x "$MCP_VENV/bin/python" ]] || die "no MCP venv — run: phicad mcp setup"
+              exec "$MCP_VENV/bin/python" "$SRC/phicad/mcp/test_handshake.py" "$@" ;;
+    docs)     [[ -x "$MCP_VENV/bin/python" ]] || die "no MCP venv — run: phicad mcp setup"
+              exec "$MCP_VENV/bin/python" "$SRC/phicad/mcp/phicad_tool.py" docs "$@" ;;
+    *) cat <<'EOF'
+phicad mcp setup                 create build/mcp-venv (fastmcp) — separate from build/venv (kipy)
+phicad mcp register [--dry-run]  write the `phicad` entry of ~/.pi/agent/mcp.json for THIS layout
+phicad mcp doctor [--json]       health check: paths, kicad-cli, venvs, kipy protos, client config
+phicad mcp serve                 run the stdio server (what the MCP client launches)
+phicad mcp selftest [--full] [--autoroute]
+phicad mcp docs                  regenerate docs-site/reference/mcp-tools-generated.md
+EOF
+       [[ "$sub" == help ]] || exit 2 ;;
+  esac
+}
+
+# ---------------------------------------------------------------------- check
+
+# Every gate that does NOT need the 3.5 h C++ build, in one command, so "did I break the
+# fork layer?" has a single answer locally and in CI.  Before this, the python suites each
+# needed bespoke invocation and their own env, `phicad/testing.md` documented none of them,
+# and nothing ran them on a pull request -- five real defects reached `dev` that these
+# gates would have caught.
+#
+# Contract: `fast` needs nothing but python3 (this is what CI runs on every push); the
+# default additionally runs the suites that need a venv or the built kicad-cli, and SKIPS
+# them with the exact fix command when a prerequisite is absent.  A skip is never a pass
+# and never a failure -- reporting "missing venv" as a test failure is what made
+# test_registry.py look broken on a clean checkout.
+cmd_check() {
+  if [[ "${1:-}" == *.tsx && -f "${1:-}" ]]; then
+    exec "$SRC/phicad/core/cli.mjs" check "$@"
+  fi
+  # Same reasoning as cmd_build: a design file means "validate this design".
+  if [[ "${1:-}" == *.json && -f "${1:-}" ]]; then
+    local design="$1"; shift
+    exec "$0" synth check "$design" "$@"
+  fi
+  local mode="${1:-full}"
+  case "$mode" in fast|full) ;; *) die "usage: phicad check [fast|full]" ;; esac
+  export_layout
+
+  CHECK_PASSED=(); CHECK_FAILED=(); CHECK_SKIPPED=(); CHECK_BROKEN=()
+  local py; py="$(command -v python3.13 || command -v python3)"
+
+  # Exit-code contract for a gate:
+  #   0 = looked, clean       1 = looked, found problems       2 = could not look
+  # "Could not look" must not render as a violation (it sends people hunting a style problem
+  # that does not exist) and must not render as a pass either: it is a broken gate, distinct
+  # from skip_gate's deliberate handling of a missing prerequisite.
+  run_gate() {                     # run_gate <name> <cmd...>
+    local name="$1"; shift
+    local rc=0
+    log "check: $name"
+    "$@" || rc=$?
+    case "$rc" in
+      0) CHECK_PASSED+=("$name") ;;
+      2) CHECK_BROKEN+=("$name — could not run (see the message above)") ;;
+      *) CHECK_FAILED+=("$name") ;;
+    esac
+  }
+  skip_gate() { CHECK_SKIPPED+=("$1 — $2"); warn "skip: $1 ($2)"; }
+
+  # A missing prerequisite is worth one extra line if another worktree already has it: the
+  # cheap fix is exporting a variable, not a rebuild.
+  # PHICAD_VENV / PHICAD_MCP_VENV are used as "$VAR/bin/python", so the value is the venv
+  # directory itself -- print the path we found, unmodified.
+  suggest_sibling() {                # suggest_sibling <var> <relative-path>
+    local var="$1" rel="$2" found
+    found="$(find_sibling "$rel")" || return 0
+    printf '      found one at %s\n      to use it:  export %s=%s\n' \
+      "$found" "$var" "$found" >&2
+  }
+
+  # --- gates that need nothing but python3 ------------------------------------------
+  run_gate "compile (phicad/)" "$py" -m compileall -q "$SRC/phicad"
+  run_gate "shell syntax" bash -n "$SRC/phicad/bin/phicad"
+  if [[ -f "$SRC/phicad/bin/phicad-tool" ]]; then
+    run_gate "shell syntax (phicad-tool)" bash -n "$SRC/phicad/bin/phicad-tool"
+  fi
+  run_gate "style (line length, whitespace, tabs)" "$py" "$SRC/phicad/bin/check_style.py"
+  # ruff runs in CI (testing.md §5) but was missing here, so a lint error's first sighting
+  # was a red PR.  Skipped rather than failed when ruff is absent: this gate must not turn
+  # a missing dev tool into "your branch is broken".
+  if ruff_bin=$(command -v ruff 2>/dev/null); then
+    run_gate "ruff (pyflakes + pycodestyle)" "$ruff_bin" check --no-cache "$SRC"
+  elif [[ -x "$MCP_VENV/bin/python" ]] && "$MCP_VENV/bin/python" -c 'import ruff' 2>/dev/null; then
+    run_gate "ruff (pyflakes + pycodestyle)" "$MCP_VENV/bin/python" -m ruff \
+      check --no-cache "$SRC"
+  else
+    skip_gate "ruff (pyflakes + pycodestyle)" "ruff not installed — pip install ruff"
+  fi
+  run_gate "json schemas + examples" "$py" "$SRC/phicad/bin/check_schemas.py"
+  # The gates decide what may merge, so their own exit-code contract is pinned too.
+  run_gate "gate self-tests (exit-code contract)" "$py" "$SRC/phicad/bin/test_check_gates.py"
+  run_gate "release install smoke tests" "$py" "$SRC/phicad/bin/test_release_smoke.py"
+  run_gate "version identity command" "$py" "$SRC/phicad/bin/test_version_command.py"
+  run_gate "support bundle privacy" "$py" "$SRC/phicad/pylib/test_support_bundle.py"
+  run_gate "docs release source" "$py" "$SRC/phicad/docs-site/test_docs_release.py"
+  run_gate "feedback widget source" "$py" "$SRC/phicad/docs-site/test_feedback_widget.py"
+  run_gate "build-artifact presence (open/doctor)" "$py" "$SRC/phicad/bin/test_app_presence.py"
+  run_gate "doctor reports unrunnable builds" "$py" "$SRC/phicad/bin/test_doctor_runnable.py"
+  run_gate "ai-view suites" env PYTHONPATH="$SRC/phicad/plugins/ai-view" \
+    "$py" -m unittest discover -s "$SRC/phicad/plugins/ai-view" -p 'test_*.py' -q
+  run_gate "telemetry selftest" "$py" "$SRC/phicad/pylib/telemetry_selftest.py"
+  run_gate "gateway-models selftest" "$py" "$SRC/phicad/pylib/gateway_models_selftest.py"
+  # Offline rules only: alias existence needs the gateway (and a credential), which
+  # `phicad models check` covers interactively; CI must not fail for lacking a key.
+  run_gate "agent model refs (offline rules)" \
+    "$py" "$SRC/phicad/pylib/gateway_models.py" check --offline
+  # Pure-python netlist/partition logic; no venv, no build tree.
+  run_gate "synth library paths" "$py" "$SRC/phicad/synth/test_library_paths.py"
+  run_gate "swarm selftest" "$py" "$SRC/phicad/swarm/selftest.py"
+  run_gate "dev loop selftest (backlog, picking, one scratch iteration)" "$py" "$SRC/phicad/loop/test_loop.py"
+  # DRC report classification is also stdlib-only; keep its fixtures in the fast gate so a
+  # change cannot make an unknown endpoint look clean without a board build.
+  run_gate "DRC open classification selftest" "$py" "$SRC/phicad/pylib/drc_opens_selftest.py"
+  run_gate "schematic parity classification selftest" \
+    "$py" "$SRC/phicad/pylib/drc_parity_selftest.py"
+  # The InteractiveHtmlBom generic-JSON builder: captured pos/IPC-D-356/Edge.Cuts text in,
+  # ibom's document out. Stdlib only, so the document shape is gated without a board, a venv
+  # or an ibom checkout. Real ibom integration is a separate dependency-enabled smoke.
+  run_gate "ibom generic-json builder" "$py" "$SRC/phicad/pylib/test_ibom_json.py"
+  # Text-level format assumptions in the parts -> synth path (footprint head token,
+  # symbol nesting by paren depth rather than indent style). Parser-only: no venv, no
+  # built kicad-cli, so it belongs in `fast` where the synth selftest cannot go.
+  run_gate "synth library/symbol token contracts" \
+    "$py" "$SRC/phicad/synth/test_library_tokens.py"
+  run_gate "parts KLC checker adapter" "$py" "$SRC/phicad/parts/test_klc_check.py"
+  # Backend argv + fallback decision only: a fake subprocess runner replays captured
+  # JLC2KiCadLib/easyeda2kicad logs, so no venv, no network, no LCSC API.
+  run_gate "parts fetch backends (argv, fallback)" "$py" "$SRC/phicad/parts/test_fetch_part.py"
+  # Circuit JSON -> Design IR: the closed element policy, the single nm boundary and plan
+  # determinism. Stdlib only, so a fail-closed regression is caught without a build tree.
+  run_gate "circuit json translation policy" \
+    "$py" "$SRC/phicad/synth/test_circuit_json.py"
+  # The apply service's write discipline: plan-only touches nothing, and every rejection path
+  # leaves the project byte-identical. Needs git, not a venv or kicad-cli -- the happy-path
+  # commit lives in `bun phicad/core/test_apply.mjs`.
+  run_gate "circuit json apply (write discipline)" \
+    "$py" "$SRC/phicad/synth/test_circuit_apply.py"
+  # The fine-pitch BGA escape measurement and the tool that produced it. Reads board
+  # text only, so the ~22 min routing run it attests to stays out of the inner loop
+  # while the committed numbers cannot silently rot.
+  run_gate "bga escape audit + measurement" \
+    "$py" "$SRC/phicad/autoroute/test_escape_audit.py"
+
+  if [[ "$mode" == fast ]]; then check_summary; return; fi
+
+  # --- gates that need a venv or the built CLI ---------------------------------------
+  if [[ -x "$MCP_VENV/bin/python" ]]; then
+    run_gate "mcp registry (tool shape, generated docs)" \
+      "$MCP_VENV/bin/python" "$SRC/phicad/mcp/test_registry.py"
+  else
+    skip_gate "mcp registry" "no MCP venv at $MCP_VENV — run: phicad mcp setup"
+    suggest_sibling PHICAD_MCP_VENV build/mcp-venv
+  fi
+
+  if [[ -x "$VENV/bin/python" ]]; then
+    run_gate "synth selftest" "$VENV/bin/python" "$SRC/phicad/synth/selftest.py"
+  else
+    skip_gate "synth selftest" "no automation venv at $VENV — run: phicad venv"
+    suggest_sibling PHICAD_VENV build/venv
+  fi
+
+  local cli="${PHICAD_KICAD_CLI:-$(built_bin kicad-cli)}"
+  if [[ -x "$cli" ]]; then
+    CHECK_PASSED+=("kicad-cli present ($("$cli" version 2>/dev/null | head -1))")
+    # The end-to-end tool suite: needs both venvs AND the built CLI, drives real boards
+    # through real tools (~100 s in --quick). It is the only gate that would catch a tool
+    # that imports fine but no longer works, so it belongs in the pre-release run.
+    if [[ -x "$MCP_VENV/bin/python" && -x "$VENV/bin/python" ]]; then
+      run_gate "mcp tool suite (real boards, --quick)" \
+        "$MCP_VENV/bin/python" "$SRC/phicad/mcp/test_tools.py" --quick
+    else
+      skip_gate "mcp tool suite" "needs both venvs (see the skips above)"
+    fi
+  else
+    skip_gate "kicad-cli gates" "not built at $cli — run: phicad build kicad-cli"
+    local rel found
+    rel="$(built_bin kicad-cli)"; rel="build/${PLATFORM}-dev/${rel#"$BUILD/"}"
+    if found="$(find_sibling "$rel")"; then
+      printf '      found one at %s\n      to use it:  export PHICAD_KICAD_CLI=%s\n' \
+        "$found" "$found" >&2
+    fi
+  fi
+
+  check_summary
+}
+
+check_summary() {
+  echo
+  local rule="----------------------------------------------------------------"
+  printf '%s\n' "$rule"
+  local name
+  for name in "${CHECK_PASSED[@]+"${CHECK_PASSED[@]}"}";   do printf 'PASS  %s\n' "$name"; done
+  for name in "${CHECK_SKIPPED[@]+"${CHECK_SKIPPED[@]}"}"; do printf 'SKIP  %s\n' "$name"; done
+  for name in "${CHECK_FAILED[@]+"${CHECK_FAILED[@]}"}";   do printf 'FAIL  %s\n' "$name"; done
+  for name in "${CHECK_BROKEN[@]+"${CHECK_BROKEN[@]}"}";  do printf 'BROKEN  %s\n' "$name"; done
+  printf '%s\n' "$rule"
+  printf '%d passed, %d skipped, %d failed, %d broken\n' \
+    "${#CHECK_PASSED[@]}" "${#CHECK_SKIPPED[@]}" "${#CHECK_FAILED[@]}" "${#CHECK_BROKEN[@]}"
+  [[ "${#CHECK_FAILED[@]}" -eq 0 && "${#CHECK_BROKEN[@]}" -eq 0 ]] || exit 1
+}
+
+# Run a python script/module/REPL from the automation venv with the IPC socket
+# env preset, so `kipy.KiCad()` connects to a `phicad api-server` instance.
+cmd_py() {
+  [[ -x "$VENV/bin/python" ]] || die "no venv — run: phicad venv"
+  KICAD_API_SOCKET="${KICAD_API_SOCKET:-$API_SOCKET_DEFAULT}" \
+    exec "$VENV/bin/python" "$@"
+}
+
+# Compile a design IR into a placed, routed, DRC-checked project (phicad/synth).
+#   phicad synth check design.json
+#   phicad synth build design.json -o out/
+# The venv, not any python3: `build` opens an IPC session and needs kipy. `check` would
+# run anywhere, but offering two interpreters lets a design validate here and fail to
+# build there, which is a worse failure than one command with one requirement.
+# ---------------------------------------------------------------- short-verb commands
+# These wrap what already exists. The point is that the first thing a new user meets is
+# "new / dev / build / check / snapshot", not a 39-command reference.
+
+cmd_new() {
+  local name="${1:-}"
+  [[ -n "$name" ]] || die "usage: phicad new <name>   (writes ./<name>.json)"
+  local out="${name%.json}.json"
+  [[ -e "$out" ]] && die "$out exists — pick another name, or edit that file"
+  cat > "$out" <<JSON
+{
+  "project": "${name%.json}",
+  "title": "${name%.json}",
+  "board": { "layers": 2, "outline": "auto", "margin": 2.0, "ground_net": "GND",
+             "pour_ground": true },
+  "rules": { "clearance": 0.2, "track_width": 0.25 },
+  "parts": {
+    "R1": { "footprint": "Resistor_SMD:R_0805_2012Metric", "value": "1k" },
+    "D1": { "footprint": "LED_SMD:LED_0805_2012Metric", "value": "LED red" },
+    "J1": { "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical",
+            "value": "power", "symbol": "Connector_Generic:Conn_01x02" }
+  },
+  "placement": { "J1": { "edge": "west" }, "R1": { "near": "D1", "within": 3.0 } },
+  "nets": {
+    "VCC": ["J1.1", "R1.1"],
+    "LED": ["R1.2", "D1.1"],
+    "GND": ["J1.2", "D1.2"]
+  },
+  "no_connect": []
+}
+JSON
+  say "wrote $out"
+  printf '  next:  %s check %s\n         %s dev %s\n' "$0" "$out" "$0" "$out"
+}
+
+# One loop: check, build, render, then wait for the file to change and do it again.
+# Modelled on `tsci dev` -- a single command you leave running while you edit the design.
+cmd_dev() {
+  local design="${1:-}"
+  [[ -n "$design" ]] || die "usage: phicad dev <design.json> [-o outdir]"
+  [[ -f "$design" ]] || die "no design at $design"
+  shift
+  local out="${1:-}"
+  if [[ "$out" == "-o" ]]; then shift; out="${1:-}"; shift || true; fi
+  [[ -n "$out" ]] || out="$(dirname "$design")/$(basename "${design%.json}")-out"
+
+  local stamp=""
+  while :; do
+    local now
+    now="$(stat -f %m "$design" 2>/dev/null || stat -c %Y "$design" 2>/dev/null)"
+    if [[ "$now" != "$stamp" ]]; then
+      stamp="$now"
+      printf '\n\033[1;36m==>\033[0m %s  →  %s\n' "$design" "$out"
+      "$0" synth build "$design" -o "$out" --force || true
+      local board="$out/$(basename "${design%.json}").kicad_pcb"
+      [[ -f "$board" ]] && "$0" snapshot "$board" -o "$out/preview.svg" --png >/dev/null 2>&1 \
+        && printf '    preview: %s\n' "$out/preview.png"
+      printf '\033[2m    watching %s — ctrl-c to stop\033[0m\n' "$(basename "$design")"
+    fi
+    sleep 1
+  done
+}
+
+# Render a board or schematic. The board path uses the repo's own plotter, which crops to the
+# board extents in the PhiCad theme; kicad-cli's --fit-page-to-board collapses the viewBox.
+cmd_snapshot() {
+  local target="${1:-}"
+  [[ -n "$target" ]] || die "usage: phicad snapshot <board.kicad_pcb|sch.kicad_sch> [-o out] [--png]"
+  [[ -f "$target" ]] || die "no file at $target"
+  shift
+  local out="" png=0
+  while (($#)); do
+    case "$1" in
+      -o|--output) shift; out="${1:-}" ;;
+      --png)       png=1 ;;
+      *)           die "unknown option '$1'" ;;
+    esac
+    shift || true
+  done
+
+  case "$target" in
+    *.kicad_sch)
+      [[ -n "$out" ]] || out="$(dirname "$target")"
+      export KICAD_RUN_FROM_BUILD_DIR=1
+      "${PHICAD_KICAD_CLI:-$(built_bin kicad-cli)}" \
+        sch export svg --output "$out" --no-background-color "$target"
+      ;;
+    *.kicad_pcb)
+      [[ -n "$out" ]] || out="${target%.kicad_pcb}.svg"
+      [[ -x "$VENV/bin/python" ]] || die "no venv — run: phicad venv"
+      local plot="$SRC/phicad/demos/teensy-sensor-suite/plot_board.py"
+      [[ -f "$plot" ]] || die "plotter not found at $plot"
+      local args=("$plot" "$target" -o "$out")
+      ((png)) && args+=(--png)
+      "$VENV/bin/python" "${args[@]}"
+      ;;
+    *) die "snapshot takes a .kicad_pcb or a .kicad_sch" ;;
+  esac
+}
+
+cmd_open() {
+  local app="$BUILD/kicad/PhiCad.app"
+  local exe="$app/Contents/MacOS/PhiCad"
+
+  if [[ "$(tree_layout)" == flat ]]; then
+    # Linux build tree: no bundle, no LaunchServices. Run the executable itself, and say so
+    # plainly when there is no display — a build host is usually headless.
+    exe="$(built_bin PhiCad)"
+    [[ -d "$BUILD" ]] || die "no app at $BUILD — run: phicad configure dev && phicad build kicad"
+    [[ -x "$exe" ]] || die "no GUI executable at $exe — run: phicad build kicad"
+    [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] \
+      || die "no DISPLAY/WAYLAND_DISPLAY: the GUI needs a desktop session (use kicad-cli, the MCP server or the web view headless)"
+    KICAD_RUN_FROM_BUILD_DIR=1 exec "$exe" "$@"
+  fi
+
+  # Check the EXECUTABLE, not just the bundle directory.  A configured build tree grows
+  # `PhiCad.app/` (and its kifaces) long before the `kicad` target links the GUI binary, so a
+  # directory test reports an app that cannot start.  That is exactly how "Studio is built"
+  # stayed true on a tree where the window could never open.
+  [[ -d "$app" ]] || die "no app at $app — run: phicad build kicad"
+  [[ -x "$exe" ]] || die "$app has no GUI executable ($exe)
+
+The bundle exists because the build tree is configured, but the app itself was never linked.
+Build it with:  phicad build kicad"
+
+  # `open -a` returns 0 even when LaunchServices refuses the bundle, so a broken launch would
+  # look like success to any caller.  Report the real outcome instead.
+  if ! KICAD_RUN_FROM_BUILD_DIR=1 open -a "$app" "$@"; then
+    die "macOS refused to launch $app"
+  fi
+}
+
+cmd_synth() {
+  [[ -x "$VENV/bin/python" ]] || die "no venv — run: phicad venv"
+  local cli="$SRC/phicad/synth/cli.py"
+  [[ -f "$cli" ]] || die "synth not found at $cli"
+  # The build starts its OWN document-less api-server, so it must not inherit a socket
+  # pointing at an editor the user has open.  Unset rather than `env -u`: `exec` is a
+  # shell builtin and cannot be the command `env` runs.
+  unset KICAD_API_SOCKET KICAD_API_TOKEN
+  export PHICAD_KICAD_CLI="${PHICAD_KICAD_CLI:-$(built_bin kicad-cli)}"
+  export KICAD_RUN_FROM_BUILD_DIR=1
+  exec "$VENV/bin/python" "$cli" "$@"
+}
+
+# Print the versioned host/model handshake.  This is stdlib-only so agent hosts can discover
+# the contract before a build tree, automation venv, or MCP server exists.
+cmd_integration() {
+  local cli="$SRC/phicad/integration/capabilities.py"
+  [[ -f "$cli" ]] || die "integration contract not found at $cli"
+  if [[ "${1:-capabilities}" == "capabilities" ]]; then
+    [[ $# -gt 0 ]] && shift
+  fi
+  exec python3 "$cli" "$@"
+}
+
+# Drive Freerouting over the fork's Specctra CLI: board -> dsn -> ses -> board.
+#   phicad autoroute board.kicad_pcb [-o out.kicad_pcb] [--passes N] [--drc]
+# Stdlib python only (no kipy, no IPC session), so any python3 will do -- but the
+# driver shells out to kicad-cli, which must be the FORK's: stable KiCad has no
+# `pcb export dsn` and would rewrite the board with the 10.0 serializer.
+# Summarise what the agent suite has been doing: AI turns and synth runs.
+#   phicad telemetry [--days N] [--json] [--where]
+#   phicad telemetry ship [--dry-run]      -> InfluxDB, for Grafana to draw
+# Shipping is a separate step, never a sink on the write path: a design session must
+# not wait on a metrics endpoint, and an offline laptop must still record and catch up.
+# Reads ~/.phicad/telemetry/*.jsonl.  No build tree needed and no kipy -- it is a
+# reader over local files, so it works on a machine that has never built the fork.
+cmd_telemetry() {
+  local tool="$SRC/phicad/pylib/telemetry_report.py"
+  [[ -f "$tool" ]] || die "telemetry reader not found at $tool"
+  exec python3 "$tool" "$@"
+}
+
+# models: the agent suite's tiers against the live LLM gateway (list/check/retarget).
+# The gateway host doubles as the proxy in managed-laptop env vars, so call it directly.
+# `phicad which kicad-cli` — the layout-correct path of a build-tree binary, for scripts and
+# agent prompts that must not spell the macOS bundle path themselves. Prints the path either
+# way; exit 0 when it exists, 1 when that target has not been built yet (a `$(...)` caller
+# gets the path, an `if` caller gets the answer).
+cmd_which() {
+  local what="${1:-kicad-cli}"
+  case "$what" in
+    kicad-cli|cli)  what=kicad-cli ;;
+    kicad|phicad|gui) what=PhiCad ;;
+    build)          echo "$BUILD"; [[ -d "$BUILD" ]]; return ;;
+    *) die "phicad which <kicad-cli|kicad|build>" ;;
+  esac
+  local bin; bin="$(built_bin "$what")"
+  echo "$bin"
+  [[ -x "$bin" ]]
+}
+
+# The named design agents (phicad/agents/*.md) are phi agent definitions; phi's subagent tool
+# loads them from ~/.pi/agent/agents (user scope, the default) or .pi/agents (project scope).
+# The repo is the source of truth, so installing is a copy — this command makes it one step
+# and shows drift, which is how stale personal copies with hard-coded paths were found.
+cmd_agents() {
+  local sub="${1:-status}"; shift || true
+  local dest="${PI_AGENT_DIR:-$HOME/.pi/agent}/agents" scope_flag=""
+  [[ "${1:-}" == "--project" ]] && { dest="$PWD/.pi/agents"; scope_flag=" --project"; shift; }
+  local f name n_same=0 n_new=0 n_changed=0
+  case "$sub" in
+    install)
+      mkdir -p "$dest"
+      for f in "$SRC"/phicad/agents/*.md; do
+        name="$(basename "$f")"; [[ "$name" == README.md ]] && continue
+        if [[ ! -f "$dest/$name" ]]; then n_new=$((n_new+1)); echo "  new      $name"
+        elif ! cmp -s "$f" "$dest/$name"; then n_changed=$((n_changed+1)); echo "  updated  $name"
+        else n_same=$((n_same+1)); fi
+        cp "$f" "$dest/$name"
+      done
+      log "agents installed to $dest: $n_new new, $n_changed updated, $n_same unchanged"
+      ;;
+    status)
+      for f in "$SRC"/phicad/agents/*.md; do
+        name="$(basename "$f")"; [[ "$name" == README.md ]] && continue
+        if [[ ! -f "$dest/$name" ]]; then echo "  missing  $name"; n_new=$((n_new+1))
+        elif ! cmp -s "$f" "$dest/$name"; then echo "  differs  $name"; n_changed=$((n_changed+1))
+        else echo "  ok       $name"; fi
+      done
+      if (( n_new + n_changed )); then
+        warn "$dest is behind phicad/agents — run: phicad agents install$scope_flag"
+        return 1
+      fi
+      log "all agents in $dest match phicad/agents"
+      ;;
+    *) die "phicad agents install|status [--project]" ;;
+  esac
+}
+
+cmd_models() {
+  local tool="$SRC/phicad/pylib/gateway_models.py"
+  [[ -f "$tool" ]] || die "gateway model tool not found at $tool"
+  exec env -u HTTPS_PROXY -u https_proxy -u HTTP_PROXY -u http_proxy \
+           -u ALL_PROXY -u all_proxy python3 "$tool" "$@"
+}
+
+cmd_autoroute() {
+  need_build_dir
+  local tool="$SRC/phicad/autoroute/freeroute.py"
+  [[ -f "$tool" ]] || die "autoroute driver not found at $tool"
+  export KICAD_CLI="${KICAD_CLI:-$(built_bin kicad-cli)}"
+  exec python3 "$tool" "$@"
+}
+
+# ----------------------------------------------------------------------- test
+
+cmd_test() {
+  need_build_dir
+  local args=(--test-dir "$BUILD/qa" --output-on-failure)
+  if [[ $# -gt 0 ]]; then
+    log "ctest -R $1"
+    ctest "${args[@]}" -R "$1" "${@:2}"
+  else
+    log "running full QA suite (slow: ~10+ min) — pass a regex to narrow it"
+    ctest "${args[@]}" -j "$JOBS"
+  fi
+}
+
+cmd_tests_list() { need_build_dir; ctest --test-dir "$BUILD/qa" -N; }
+
+# Run a single Boost suite/case inside a QA binary:
+#   phicad boost qa_common LibId
+#   phicad boost qa_pcbnew DRCTestProvider --log_level=all
+cmd_boost() {
+  need_build_dir
+  local target="${1:?usage: phicad boost <qa_target> [suite[/case]] [boost args...]}"; shift
+  local bin
+  bin="$(find "$BUILD/qa" -type f -perm +111 -name "$target" | head -1)" \
+    || die "test binary $target not built — phicad build $target"
+  [[ -n "$bin" ]] || die "test binary $target not built — run: phicad build $target"
+  local filter=()
+  if [[ ${1:-} != "" && ${1:0:2} != "--" ]]; then filter=(--run_test="$1"); shift; fi
+  # Do NOT pre-set KICAD_CONFIG_HOME here. KI_TEST::SetMockConfigDir()
+  # (qa/qa_utils/wx_utils/unit_test_utils.cpp:117) only points it at
+  # qa/data/config *and* sets KICAD_INHIBIT_SETTINGS_WRITES when the variable is
+  # unset. Setting it ourselves skips that guard and the test run writes back to
+  # tracked fixtures (qa/data/config/*/kicad_common.json shows up as modified).
+  KICAD_RUN_FROM_BUILD_DIR=1 QA_DATA_ROOT="$SRC/qa/data" \
+  KICAD_TEST_EESCHEMA_DATA_DIR="$SRC/qa/data/eeschema" \
+  "$bin" "${filter[@]+"${filter[@]}"}" "$@"
+}
+
+# ---------------------------------------------------------------- formatting
+
+# Format only what you changed, per CONTRIBUTING.md (never reformat whole files).
+cmd_fmt() {
+  command -v clang-format >/dev/null || die "clang-format missing — run: phicad bootstrap"
+  case "${1:-working}" in
+    check)   "$SRC/tools/check_coding.sh" --diff ;;
+    staged)  "$SRC/tools/check_coding.sh" --cached ;;
+    working) "$SRC/tools/check_coding.sh" ;;
+    *)       "$SRC/tools/check_coding.sh" "$@" ;;
+  esac
+}
+
+# ------------------------------------------------------------ upstream syncing
+
+# `master` is the RELEASE branch (GitHub default): it moves only by fast-forward
+# from `dev` (`phicad release`). `dev` is the integration branch where PRs and
+# upstream merges land. The pristine upstream pointer is the remote-tracking ref
+# refs/remotes/upstream/master (maintained by cmd_fetch_upstream).
+master_worktree() {
+  git -C "$SRC" worktree list --porcelain \
+    | awk '/^worktree /{wt=$2} /^branch refs\/heads\/master$/{print wt}'
+}
+
+cmd_fetch_upstream() {
+  git -C "$SRC" remote get-url upstream >/dev/null 2>&1 \
+    || git -C "$SRC" remote add upstream "$UPSTREAM_URL"
+  # gitlab.com must bypass the proxy; make it permanent for this repo.
+  git -C "$SRC" config 'http.https://gitlab.com/.proxy' '' || true
+  log "fetching upstream master"
+  # The refspec LHS must be fully qualified. With --prune plus an explicit
+  # refspec, that refspec defines the prune set; an unqualified LHS (`master`)
+  # cannot be mapped back to a remote ref, so git treats
+  # refs/remotes/upstream/master as stale and deletes it right after fetching it
+  # (`- [deleted] (none) -> upstream/master`), which then breaks `phicad sync`.
+  noproxy git -C "$SRC" fetch --prune upstream \
+    '+refs/heads/master:refs/remotes/upstream/master'
+}
+
+# sync: bring upstream KiCad into the integration branch. Run from a worktree
+# on `dev` (or a feature branch that wants upstream code). Never touches master.
+cmd_sync() {
+  cmd_fetch_upstream
+  local here; here="$(git -C "$SRC" rev-parse --abbrev-ref HEAD)"
+  if [[ "$here" == "master" ]]; then
+    die "current worktree is on master (release). Sync runs on dev: cd the dev worktree first"
+  fi
+  [[ -z "$(git -C "$SRC" status --porcelain)" ]] \
+    || die "working tree dirty — commit or stash before merging upstream into $here"
+  log "merging upstream/master into $here"
+  git -C "$SRC" merge --no-edit upstream/master
+  log "done. rebuild with: phicad build, then validate + phicad release"
+}
+
+# release: fast-forward master (release branch) onto the validated dev tip.
+cmd_release() {
+  local mw; mw="$(master_worktree)"
+  [[ -n "$mw" ]] || die "no worktree has 'master' checked out"
+  [[ -z "$(git -C "$mw" status --porcelain)" ]] || die "release worktree $mw is dirty"
+  log "fetching origin"
+  noproxy git -C "$mw" fetch -q origin
+  log "fast-forwarding master -> origin/dev in $mw"
+  git -C "$mw" merge --ff-only origin/dev \
+    || die "master cannot fast-forward to origin/dev — was something committed on master directly?"
+  log "pushing master to origin"
+  noproxy git -C "$mw" push origin master
+  log "release cut: master = $(git -C "$mw" log --oneline -1)"
+}
+
+cmd_status() {
+  echo "repo      : $SRC"
+  echo "branch    : $(git -C "$SRC" rev-parse --abbrev-ref HEAD)"
+  echo "head      : $(git -C "$SRC" log --oneline -1)"
+  echo "build dir : $BUILD $( [[ -f $BUILD/build.ninja ]] && echo '(configured)' || echo '(NOT configured)')"
+  if git -C "$SRC" rev-parse --verify -q upstream/master >/dev/null; then
+    local behind ahead
+    behind=$(git -C "$SRC" rev-list --count HEAD..upstream/master)
+    ahead=$(git -C "$SRC" rev-list --count upstream/master..HEAD)
+    echo "upstream  : $behind commit(s) behind, $ahead ahead of upstream/master"
+  else
+    echo "upstream  : not fetched (run: phicad fetch-upstream)"
+  fi
+  if [[ -f "$BUILD/build.ninja" ]]; then
+    # A fully built tree still reports ~41 steps: the git version header is
+    # regenerated on every run, so build_version.cpp recompiles and everything
+    # linking kicommon relinks. Treat that floor as "up to date" and only call
+    # out work above it.
+    local pending floor=60
+    pending=$(ninja -C "$BUILD" -n 2>/dev/null | grep -c '^\[' || true)
+    if [[ "${pending:-0}" -le "$floor" ]]; then
+      echo "pending   : up to date ($pending always-rerun step(s): version header + relinks)"
+    else
+      echo "pending   : $pending build step(s) out of date"
+    fi
+  fi
+  command -v ccache >/dev/null && echo "ccache    : $(ccache -s 2>/dev/null | awk -F': *' '/Hits:/{print $2; exit}')"
+
+  # Workflow nudges. These are the three ways work actually goes wrong here: it accumulates
+  # unpushed, it lands straight on dev without review, or it piles into one huge commit.
+  # See AGENTS.md rules 1-2 and phicad/git-workflow.md.
+  local br unpushed uncommitted
+  br=$(git -C "$SRC" rev-parse --abbrev-ref HEAD)
+  unpushed=$(git -C "$SRC" rev-list --count "@{upstream}..HEAD" 2>/dev/null || echo 0)
+  uncommitted=$(git -C "$SRC" diff --shortstat 2>/dev/null | awk '{print $4+0}')
+
+  if [[ "$br" == "master" ]]; then
+    warn "on master (release branch). Never commit here - work on a branch off dev."
+  elif [[ "$br" == "dev" ]]; then
+    warn "on dev directly. Prefer a branch off dev + a PR, so the work can be reviewed:"
+    warn "  git switch -c feat/<short-name> origin/dev"
+  fi
+
+  (( unpushed > 0 )) && warn "$unpushed commit(s) unpushed. Push after every commit - unpushed work is invisible to peers and lost on a crash."
+  (( unpushed >= 5 )) && warn "that is a lot to land at once: consider a PR now rather than growing it further."
+  (( ${uncommitted:-0} > 400 )) && warn "${uncommitted} uncommitted changed line(s). Checkpoint now - big commits cannot be reviewed, bisected, or partially reverted."
+  local dirty; dirty=$(git -C "$SRC" status --porcelain | wc -l | tr -d ' ')
+  echo "dirty     : $dirty file(s)"
+  if [[ -x "$VENV/bin/python" ]]; then
+    echo "venv      : $VENV (kipy $("$VENV/bin/python" -c 'import importlib.metadata as m; print(m.version("kicad-python"))' 2>/dev/null || echo '?'))"
+  else
+    echo "venv      : none (phicad venv)"
+  fi
+  # Match the exact build-tree binary, not any argv containing the words
+  # "kicad-cli api-server" (e.g. an editor with api-server-notes.md open).
+  local api_pat="^$(built_bin kicad-cli) api-server"
+  # procps pgrep (Linux) has no -q; redirecting is portable.
+  if pgrep -f "$api_pat" >/dev/null 2>&1; then
+    echo "api-server: RUNNING ($(pgrep -f "$api_pat" | head -3 | tr '\n' ' '))"
+  else
+    echo "api-server: not running (phicad api-server [file])"
+  fi
+}
+
+# ------------------------------------------------------------------ bootstrap
+
+cmd_bootstrap() {
+  case "$PLATFORM" in
+    mac)
+      command -v brew >/dev/null || die "Homebrew required: https://brew.sh"
+      log "installing/updating Homebrew dependencies (${#BREW_DEPS[@]} formulae)"
+      noproxy brew install "${BREW_DEPS[@]}" ;;
+    linux)
+      # apt, from the distro archive only; the same script a remote host is bootstrapped with
+      # (ssh <host> 'bash -s' < phicad/bin/bootstrap-debian.sh), so laptop and server match.
+      log "installing Debian/Ubuntu build dependencies (phicad/bin/bootstrap-debian.sh)"
+      noproxy bash "$SRC/phicad/bin/bootstrap-debian.sh" ;;
+    *) die "unsupported build host $(uname -s): phicad builds on macOS (Homebrew) and Debian/Ubuntu (apt)" ;;
+  esac
+  [[ -f "$SRC/CMakePresets.json" ]] || {
+    log "installing CMakePresets.json (gitignored, generated from phicad/CMakePresets.json)"
+    cp "$SRC/phicad/CMakePresets.json" "$SRC/CMakePresets.json"
+  }
+  log "bootstrap complete. next: phicad configure && phicad build"
+}
+
+# Linux dependency report: the development headers KiCad's finders need, asked of the tools
+# CMake itself will ask (pkg-config, wx-config, the include dirs) rather than of dpkg, so a
+# package installed under a different name on Ubuntu still reports as present.
+doctor_deps_linux() {
+  local missing=() mod val
+  # report <label> <value> <apt package>: an empty value is a missing dependency. The value is
+  # computed in THIS shell before the call — appending to `missing` inside a $(...) would
+  # happen in a subshell and be lost, which is exactly how a first draft reported "all present"
+  # next to a MISSING line.
+  report() {
+    if [[ -n "$2" ]]; then printf '  %-13s %s\n' "$1" "$2"; else printf '  %-13s MISSING\n' "$1"; missing+=("$3"); fi
+  }
+  val=$(wx-config --version 2>/dev/null || true);                      report wxwidgets "$val" libwxgtk3.2-dev
+  # wx-config lists webview even when only the core -dev package is installed; check the file.
+  val=$(ls /usr/lib/*/libwx_gtk3u_webview-3.*.so /usr/lib/libwx_gtk3u_webview-3.*.so 2>/dev/null | head -1 || true)
+  report wx-webview "$val" libwxgtk-webview3.2-dev
+  val=; [[ -d /usr/include/opencascade ]] && val=/usr/include/opencascade; report opencascade "$val" 'libocct-*-dev'
+  val=; [[ -f /usr/include/ngspice/sharedspice.h ]] && val=/usr/include/ngspice; report ngspice "$val" libngspice0-dev
+  val=$(awk '/define BOOST_LIB_VERSION/ {gsub(/"/,"",$3); print $3}' /usr/include/boost/version.hpp 2>/dev/null || true)
+  report boost "$val" libboost-dev
+  # nng ships a CMake config package and no .pc file; ask for what find_package(nng) reads.
+  val=$(ls /usr/lib/*/cmake/nng/nng-config.cmake /usr/lib/cmake/nng/nng-config.cmake 2>/dev/null | head -1 || true)
+  report nng "$val" libnng-dev
+  for mod in protobuf libgit2 cairo pixman-1 glew glm harfbuzz freetype2 fontconfig libcurl libzstd \
+             spnav poppler-glib; do
+    val=$(pkg-config --modversion "$mod" 2>/dev/null || true);        report "$mod" "$val" "$mod (-dev)"
+  done
+  val=$(swig -version 2>/dev/null | awk '/SWIG Version/ {print $3}' || true); report swig "$val" swig
+  val=$(g++ --version 2>/dev/null | head -1 || true);                  report gcc "$val" g++
+  val=$(java -version 2>&1 | head -1 || true);                         report java "$val" default-jre-headless
+  if ((${#missing[@]})); then
+    warn "missing on this host: ${missing[*]}"
+    echo "fix: phicad bootstrap   # apt, see phicad/bin/bootstrap-debian.sh"
+  else
+    log "all Linux build dependencies present"
+  fi
+}
+
+doctor_deps_mac() {
+  local missing=()
+  for f in "${BREW_DEPS[@]}"; do brew list --versions "$f" >/dev/null 2>&1 || missing+=("$f"); done
+  if ((${#missing[@]})); then
+    warn "missing formulae: ${missing[*]}"
+    echo "fix: phicad bootstrap"
+  else
+    log "all ${#BREW_DEPS[@]} Homebrew dependencies present"
+  fi
+  for v in wxwidgets opencascade protobuf boost ngspice; do
+    printf '  %-13s %s\n' "$v" "$(brew list --versions "$v" 2>/dev/null | cut -d' ' -f2- || echo MISSING)"
+  done
+}
+
+cmd_doctor() {
+  # (Not "build tree ...": test_app_presence.py slices the report at that phrase.)
+  log "host: $PLATFORM ($(uname -s) $(uname -m)), artifact layout: $(tree_layout)"
+  case "$PLATFORM" in
+    mac)   doctor_deps_mac ;;
+    linux) doctor_deps_linux ;;
+    *)     warn "unsupported build host $(uname -s): dependency check skipped" ;;
+  esac
+  printf '  %-13s %s\n' cmake "$(cmake --version 2>/dev/null | head -1)"
+  printf '  %-13s %s\n' clang "$(clang++ --version 2>/dev/null | head -1 || echo 'not installed')"
+
+  # What is actually BUILT, not just installable.  Dependencies being present says nothing about
+  # whether this tree can open a window: `PhiCad.app/` and the kifaces appear well before the
+  # `kicad` target links the GUI, and the difference is invisible until a launch fails.  Report
+  # the three artifacts a user needs, separately, because they fail independently.
+  echo
+  local app="$BUILD/kicad/PhiCad.app" nkif=0 gui=MISSING cli=MISSING gui_exe cli_exe
+  gui_exe="$(built_bin PhiCad)"; cli_exe="$(built_bin kicad-cli)"
+  [[ -x "$gui_exe" ]] && gui=ok
+  [[ -x "$cli_exe" ]] && cli=ok
+  shopt -s nullglob
+  local kifs
+  if [[ "$(tree_layout)" == bundle ]]; then
+    kifs=( "$app/Contents/PlugIns"/*.kiface )
+  else
+    kifs=( "$BUILD"/*/_*.kiface )   # Linux: each editor's kiface sits in its own build dir
+  fi
+  shopt -u nullglob
+  nkif=${#kifs[@]}
+
+  if [[ ! -d "$BUILD" ]]; then
+    warn "build tree $BUILD not configured"
+    echo "fix: phicad configure dev"
+  else
+    log "build tree $BUILD"
+    printf '  %-13s %s\n' 'GUI app'   "$gui${gui:+ }($gui_exe)"
+    printf '  %-13s %s\n' 'kicad-cli' "$cli"
+    printf '  %-13s %s\n' 'kifaces'   "$nkif/6 editor plug-ins"
+    [[ $gui == ok ]] || echo "  fix: phicad build kicad        # the GUI is not linked yet"
+    [[ $cli == ok ]] || echo "  fix: phicad build kicad-cli"
+    ((nkif >= 6))    || echo "  fix: phicad build             # some editor plug-ins are missing"
+  fi
+
+  # Presence and loadability are separate release gates: a complete-looking app bundle can still
+  # fail immediately when Homebrew moves a linked library. Keep both reports in doctor.
+  doctor_report_runnable
+}
+
+# Does the built binary actually RUN?
+#
+# A formula being installed is not the same as the binary being able to load, and the gap
+# between them is a real failure mode we hit: `brew upgrade` moved protobuf 36.0.0 -> 36.1.0,
+# both binaries kept linking the old dylib, and every single one died at dyld with
+# "Library not loaded: libprotobuf.36.0.0.dylib". Meanwhile doctor printed "protobuf 36.1"
+# and reported a healthy machine -- it was checking the formula, never the link.
+#
+# So this asks the only question that matters to somebody trying to use the thing: run
+# `kicad-cli version` and see whether a version comes back. Cheap (milliseconds), and it
+# catches every flavour of broken link, not just protobuf.
+#
+# Deliberately a WARN, not a failure: doctor's job is to report, and a machine that has not
+# built yet is a normal state, not an error.
+doctor_report_runnable() {
+  local cli gui
+  cli="$(built_bin kicad-cli)"
+  gui="$(built_bin PhiCad)"
+
+  if [[ ! -x "$cli" ]]; then
+    printf '  %-13s %s\n' 'kicad-cli' 'not built yet — run: phicad build kicad-cli'
+    return 0
+  fi
+
+  # `set -e` is on: `out=$(...)` with a failing command aborts the whole function (and with
+  # it the rest of doctor), which is the exact opposite of what a diagnostic should do -- the
+  # first attempt at this exited 133 and printed nothing at all. `|| rc=$?` keeps the failure
+  # as DATA. Same class of trap as the install path at the top of cmd_install.
+  local out rc=0
+  out=$("$cli" version 2>&1) || rc=$?
+  if (( rc == 0 )); then
+    printf '  %-13s %s\n' 'kicad-cli' "runs, reports ${out%%$'\n'*}"
+  else
+    printf '  %-13s %s\n' 'kicad-cli' 'BUILT BUT WILL NOT RUN'
+    # The loader message names a missing library, which is the whole diagnosis.  But not every
+    # early crash is a loader failure (for example, macOS can abort application registration in
+    # a broken login/bootstrap session).  A no-match grep is therefore DATA, not permission for
+    # `set -euo pipefail` to kill doctor while it is reporting the problem.
+    local loader_detail
+    loader_detail=$(printf '%s\n' "$out" \
+      | grep -m1 -iE 'library not loaded|image not found|symbol not found' \
+      | sed 's/^/      /' || true)
+    if [[ -n "$loader_detail" ]]; then
+      printf '%s\n' "$loader_detail"
+      warn "a dependency moved under the build (usually after 'brew upgrade' / 'apt upgrade')"
+      echo "fix: phicad configure dev && phicad build kicad-cli kicad"
+    else
+      printf '      exited with status %d before reporting a version\n' "$rc"
+      warn "kicad-cli terminated without a loader diagnostic"
+      echo "fix: retry from a logged-in desktop shell; if it still fails, reconfigure and rebuild"
+    fi
+  fi
+
+  if [[ -x "$gui" ]]; then
+    # NOT `PhiCad --version`: the GUI does not answer it on the command line, it opens a
+    # window and waits (measured: exit 124 under `timeout 30`). Doctor must never hijack the
+    # screen or hang, so the GUI is checked WITHOUT being executed -- ask dyld whether every
+    # library it links can be resolved. That is precisely the failure being guarded against,
+    # and it costs milliseconds.
+    # `|| true` on both stages, because under `set -euo pipefail` this whole capture aborts
+    # doctor otherwise: otool exits non-zero on anything that is not Mach-O ("is not an object
+    # file"), and grep exits 1 when a binary legitimately links no Homebrew library. Neither is
+    # an error worth dying on -- a corrupt or non-Mach-O file at that path should be REPORTED.
+    # Linux asks the same question of ld.so: `ldd` prints "=> not found" per unresolved library
+    # and never executes the binary either.
+    local missing_libs linked
+    if [[ "$(tree_layout)" == flat ]]; then
+      missing_libs=$(ldd "$gui" 2>/dev/null | awk '/not found/ {print $1}' || true)
+    else
+      linked=$(otool -L "$gui" 2>/dev/null | awk 'NR>1 {print $1}' \
+        | grep -E '^(/opt/homebrew|/usr/local)' || true)
+      missing_libs=$(printf '%s\n' "$linked" | while read -r lib; do
+        [[ -n "$lib" && ! -e "$lib" ]] && echo "$lib"
+      done || true)
+    fi
+    if [[ -z "$missing_libs" ]]; then
+      printf '  %-13s %s\n' 'PhiCad (GUI)' 'built, all linked libraries resolve'
+    else
+      printf '  %-13s %s\n' 'PhiCad (GUI)' 'BUILT BUT WILL NOT RUN — missing library:'
+      printf '%s\n' "$missing_libs" | sed 's/^/      /'
+      warn "a dependency moved under the build (usually after 'brew upgrade' / 'apt upgrade')"
+      echo "fix: phicad configure dev && phicad build kicad-cli kicad"
+    fi
+  else
+    printf '  %-13s %s\n' 'PhiCad (GUI)' 'not built yet — run: phicad build kicad'
+  fi
+}
+
+# Report source + native identity without executing the GUI.  An exact release tag is the
+# release identifier; an untagged checkout is deliberately "unreleased" rather than inheriting
+# the nearest upstream KiCad tag and pretending it names a PhiCad build.
+cmd_version() {
+  local mode="${1:-text}"
+  case "$mode" in
+    text) ;;
+    --json|json) mode=json ;;
+    *) die "usage: phicad version [--json]" ;;
+  esac
+
+  local commit release dirty=false native="" cli out status_line
+  commit=$(git -C "$SRC" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
+  release=$(git -C "$SRC" describe --tags --exact-match --match 'exo-v*' \
+    --match 'phicad-v*' HEAD 2>/dev/null || echo unreleased)
+  status_line=$(git -C "$SRC" status --porcelain --untracked-files=normal 2>/dev/null \
+    | head -n 1 || true)
+  if [[ -n "$status_line" ]]; then
+    dirty=true
+  fi
+
+  cli="${PHICAD_KICAD_CLI:-$(built_bin kicad-cli)}"
+  if [[ -x "$cli" ]]; then
+    if [[ -n "${PHICAD_KICAD_CLI:-}" ]]; then
+      out=$(env -u KICAD_RUN_FROM_BUILD_DIR -u KICAD_BUILD_PATHS \
+        "$cli" version 2>/dev/null) || out=""
+    else
+      out=$(KICAD_RUN_FROM_BUILD_DIR=1 "$cli" version 2>/dev/null) || out=""
+    fi
+    native=$(printf '%s\n' "$out" | awk '/^[0-9]+([.][0-9]+){1,3}(-phicad)?$/ {print; exit}')
+  fi
+
+  if [[ "$mode" == json ]]; then
+    python3 - "$release" "$commit" "$dirty" "$native" <<'PY'
+import json
+import sys
+
+release, commit, dirty, native = sys.argv[1:]
+print(json.dumps({
+    "schema_version": 1,
+    "product": "PhiCad",
+    "release": release,
+    "commit": commit,
+    "dirty": dirty == "true",
+    "native_version": native or None,
+}, sort_keys=True))
+PY
+    return
+  fi
+
+  printf 'PhiCad %s\n' "$release"
+  printf '  %-10s : %s\n' commit "$commit"
+  printf '  %-10s : %s\n' native "${native:-not built or not runnable}"
+  printf '  %-10s : %s\n' state "$([[ "$dirty" == true ]] && echo dirty || echo clean)"
+}
+
+cmd_support() {
+  case "${1:-help}" in
+    bundle) shift; exec python3 "$SRC/phicad/pylib/support_bundle.py" "$@" ;;
+    help|-h|--help)
+      cat <<'EOF'
+phicad support bundle [--project PATH] [--output PATH] [--json]
+
+Create a local, reviewable diagnostic archive. The default bundle excludes credentials,
+prompts, transcripts, arbitrary environment values, and project contents. --project accepts
+only a recognizable KiCad/PhiCad project and adds names, sizes, and SHA-256 hashes only.
+Review the archive before attaching it to an issue.
+EOF
+      ;;
+    *) die "unknown support command '$1' (use: phicad support bundle)" ;;
+  esac
+}
+
+# The short list: what somebody actually reaches for. The full command reference is
+# `phicad help all` -- burying it is the point, not hiding it. A first-run user should be able
+# to read the whole of this without scrolling.
+cmd_help_short() {
+  cat <<'EOF'
+phicad — design a board from a description, on your machine
+
+  phicad new <name>            start a design (writes <name>.json you can edit)
+  phicad dev <design.json>     the loop: validate, build, render, watch for changes
+  phicad build <design.json>   design -> placed, routed, gate-checked project
+  phicad check [design.json]   validate a design, or gate the phicad/ layer
+  phicad snapshot <board>      render a board or schematic to PNG/SVG
+  phicad core <cmd> <f.tsx>    PhiCad Verify: tscircuit build + independent CAD check
+  phicad open [project]        open it in the PhiCad app
+  phicad doctor                is this machine set up? what is missing?
+  phicad --version             exact release/source and native build identity
+  phicad support bundle        make a reviewable, privacy-safe diagnostic archive
+
+  phicad help all              every command (build system, QA, release, MCP, telemetry)
+
+Getting started: phicad/docs-site/docs/guides/getting-started.md
+EOF
+}
+
+cmd_help() {
+  cat <<'EOF'
+phicad — the PhiCad KiCad fork helper
+
+  Setup
+    phicad bootstrap              install build dependencies (macOS: Homebrew; Debian/Ubuntu: apt)
+    phicad doctor                 check the toolchain, report what is missing
+    phicad --version              release/source identity plus runnable native version
+    phicad support bundle [--project PATH] [--output PATH] [--json]
+                                  local sanitized diagnostics; project contents stay excluded
+    phicad configure [dev|debug|release] [extra cmake args]
+                                  configure build/<mac|linux>-<flavor> (dev = RelWithDebInfo + QA)
+
+  Build & run
+    phicad build [target...]      ninja build (default: everything)
+    phicad build headless         kicad-cli + the four kifaces it loads (no GUI): what the CLI, MCP
+                                  server and agents need
+    phicad install                clean-stage build/mac-release, verify/signature-check it,
+                                  then launch its CLI outside build-tree mode (macOS only)
+    phicad targets [pattern]      list ninja targets
+    phicad run kicad-cli [args]   run a build-tree binary (KICAD_RUN_FROM_BUILD_DIR=1)
+
+  Test
+    phicad test [ctest-regex]     ctest in build/*/qa (regex strongly recommended)
+    phicad tests                  list registered ctest names
+    phicad boost <qa_bin> [suite[/case]] [--log_level=all]
+                                  run one Boost suite/case with QA env set
+
+  Quality
+    phicad check [fast|full]      every gate that needs no C++ build: compile, style,
+                                  schemas, ai-view/synth/mcp suites. fast = no venv needed
+                                  (what CI runs); full also runs the venv/CLI suites and
+                                  reports missing prerequisites as SKIP, never FAIL
+    phicad fmt [check|staged|working]
+                                  clang-format only the lines you changed
+
+  AI / automation
+    phicad venv                   create build/venv with kipy, kicad-skip, kiutils, JLC2KiCadLib,
+                                  easyeda2kicad, pillow and pypdfium2
+    phicad api-server [file] [--socket ipc:///path.sock]
+                                  run the fork's headless protobuf IPC API server
+    phicad py [args]              venv python with KICAD_API_SOCKET preset (kipy connects)
+    phicad synth check <d.json>   validate a design IR (parts, nets, footprints)
+    phicad synth build <d.json> -o <dir>
+                                  compile it: place, route, silkscreen, DRC
+    phicad autoroute <board.kicad_pcb> [-o out] [--passes N] [--drc]
+                                  route a placed board with Freerouting (DSN -> SES)
+    phicad integration capabilities
+                                  print the host/model protocol handshake as JSON
+    phicad ai-view-install        per-user AI View copy for plugin hacking (shadows the
+                                  stock plugin that ships inside PhiCad.app)
+    phicad telemetry [--days N] [--json]
+                                  what the agent suite did: turns, durations, failures
+    phicad telemetry ship [--dry-run]
+                                  send it to InfluxDB for Grafana (env-configured)
+    phicad agents install|status [--project]
+                                  install the named design agents (phicad/agents/*.md) where
+                                  phi's subagent tool loads them; status shows drift
+    phicad which kicad-cli|kicad|build
+                                  layout-correct path of a build-tree binary (exit 1 if not built)
+    phicad models [list|check|retarget OLD=NEW ...]
+                                  agent model tiers vs the live LLM gateway: prices,
+                                  context, ref validation, one-command retiering
+    phicad web-view [project-or-board] [--open] [--port N]
+                                  serve that panel yourself (loopback, token-gated);
+                                  no path = discover the board from the current directory
+    phicad tool list|describe <t>|call <t> [--arg k=v ...]|docs
+                                  every MCP tool from the shell (same JSON, exit = ok)
+    phicad project init|status|snapshot|log|diff|restore|undo|tag|journal|watch <proj>
+                                  per-project git history + agent change journal
+                                  (diff = git stat + the fork's semantic pcb/sch diff)
+    phicad mcp setup|register|doctor|serve|selftest|docs
+                                  the MCP server's lifecycle (see: phicad mcp help)
+
+  Look and feel
+    phicad profile list           profiles + themes, and what is installed now
+    phicad profile install altium [--backup] [--dry-run]
+                                  seed theme, panels, hotkeys and toolbars for
+                                  all seven editors (quit PhiCad first)
+    phicad profile capture altium snapshot the live settings back into the repo
+    phicad profile theme <name>   install one color theme and select it everywhere
+    phicad profile revert         restore the most recent --backup
+
+  Upstream
+    phicad fetch-upstream         fetch gitlab upstream/master (proxy-safe)
+    phicad sync                   merge upstream/master into this (dev) worktree
+    phicad release                ff master (release) -> validated origin/dev tip, push
+    phicad status                 branch / upstream delta / build freshness
+
+Environment overrides: PHICAD_BUILD (build dir), PHICAD_VENV, PHICAD_MCP_VENV,
+  PHICAD_KICAD_CLI, PHICAD_JOBS (parallelism).
+Details: phicad/README.md, phicad/build-macos.md, phicad/testing.md
+EOF
+}
+
+# ------------------------------------------------------------------- dispatch
+
+case "${1:-help}" in
+  bootstrap)      shift; cmd_bootstrap "$@" ;;
+  doctor)         shift; cmd_doctor "$@" ;;
+  version|-V|--version) shift; cmd_version "$@" ;;
+  support)        shift; cmd_support "$@" ;;
+  configure|conf) shift; cmd_configure "$@" ;;
+  build|b)        shift; cmd_build "$@" ;;
+  install)        shift; cmd_install "$@" ;;
+  targets)        shift; cmd_targets "$@" ;;
+  run)            shift; cmd_run "$@" ;;
+  test|t)         shift; cmd_test "$@" ;;
+  tests)          shift; cmd_tests_list "$@" ;;
+  boost)          shift; cmd_boost "$@" ;;
+  fmt|format)     shift; cmd_fmt "$@" ;;
+  venv)           shift; cmd_venv "$@" ;;
+  api-server)     shift; cmd_api_server "$@" ;;
+  ai-view-install) shift; cmd_ai_view_install "$@" ;;
+  web-view)       shift; cmd_web_view "$@" ;;
+  profile)        shift; cmd_profile "$@" ;;
+  py)             shift; cmd_py "$@" ;;
+  synth)          shift; cmd_synth "$@" ;;
+  check)          shift; cmd_check "$@" ;;
+  tool)           shift; cmd_tool "$@" ;;
+  project|proj)   shift; cmd_project "$@" ;;
+  mcp)            shift; cmd_mcp "$@" ;;
+  integration)    shift; cmd_integration "$@" ;;
+  autoroute)      shift; cmd_autoroute "$@" ;;
+  telemetry)      shift; cmd_telemetry "$@" ;;
+  models)         shift; cmd_models "$@" ;;
+  agents)         shift; cmd_agents "$@" ;;
+  which)          shift; cmd_which "$@" ;;
+  fetch-upstream) shift; cmd_fetch_upstream "$@" ;;
+  sync)           shift; cmd_sync "$@" ;;
+  release)        shift; cmd_release "$@" ;;
+  status|st)      shift; cmd_status "$@" ;;
+  new)            shift; cmd_new "$@" ;;
+  core)           shift; exec "$SRC/phicad/core/cli.mjs" "$@" ;;
+  dev)            shift; cmd_dev "$@" ;;
+  snapshot|snap)  shift; cmd_snapshot "$@" ;;
+  open)           shift; cmd_open "$@" ;;
+  help|-h|--help)
+    case "${2:-}" in
+      all|full|-a) cmd_help ;;
+      *)           cmd_help_short ;;
+    esac
+    ;;
+  *)              die "unknown command '$1' (try: phicad help)" ;;
+esac

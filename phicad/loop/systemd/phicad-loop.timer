@@ -1,0 +1,14 @@
+# Fires phicad-loop.service: a few minutes after boot, then a fixed pause after each iteration
+# ENDS (OnUnitInactiveSec, not OnCalendar — a long item must not stack a second firing on top).
+# install-remote.sh rewrites the interval from --interval.
+[Unit]
+Description=PhiCad continuous development loop timer
+
+[Timer]
+OnBootSec=10min
+OnUnitInactiveSec=30min
+Persistent=true
+Unit=phicad-loop.service
+
+[Install]
+WantedBy=timers.target

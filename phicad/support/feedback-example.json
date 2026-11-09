@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0",
+  "record_id": "fb_example_001",
+  "created_at": "2026-09-17T12:00:00Z",
+  "feedback_type": "bug",
+  "title": "Board check reports an unexpected failure",
+  "summary": "A repeatable board check stops before the result is displayed.",
+  "product": "PhiCad",
+  "version": "unreleased_469cac52c319",
+  "platform": {
+    "os": "macos",
+    "arch": "arm64",
+    "os_version": "unknown"
+  },
+  "workflow": {
+    "surface": "cli",
+    "entrypoint": "phicad synth build"
+  },
+  "reproduction": {
+    "steps": [
+      "Create the smallest generated example.",
+      "Run the synthesis build with default options.",
+      "Observe that the final result is not displayed."
+    ],
+    "frequency": "always",
+    "minimal_case": "The shipped small-board example is sufficient."
+  },
+  "expected": "The command displays the result for every completed gate.",
+  "actual": "The command stops before the final result is displayed.",
+  "diagnostics_refs": [],
+  "provenance": {
+    "source": "site",
+    "captured_at": "2026-09-17T12:00:00Z",
+    "collector": "site-feedback/1.0"
+  },
+  "redaction_status": "passed",
+  "redaction_profile": "feedback_text",
+  "consent": {
+    "feedback_submission": true,
+    "diagnostics": false,
+    "improvement_report": false,
+    "recorded_at": "2026-09-17T12:00:00Z"
+  }
+}

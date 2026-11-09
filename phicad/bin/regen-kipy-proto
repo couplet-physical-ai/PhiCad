@@ -1,0 +1,274 @@
+#!/usr/bin/env python3
+# Copyright (C) 2026 Exowatt, Inc. / PhiCad contributors
+#
+# This program is free software; you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation; either version 3 of the License, or (at your option) any later
+# version.
+"""Regenerate the installed `kipy` protobuf bindings from **this fork's** api/proto tree.
+
+Why this exists
+---------------
+`kipy` (kicad-python) ships bindings generated against the stable KiCad release. The fork's
+`api/proto/` is ahead of that: it has commands (`OpenDocument`, `RunAction`, ...) and enum
+values (`KOT_PCB_CONSTRAINT`, `KOT_SCH_RULE_AREA`, ...) that the packaged bindings simply
+cannot express, so an agent driving a fork api-server gets
+
+    no handler available for request of type kiapi.common.commands.OpenDocument
+
+not because the server lacks the handler, but because the *client* cannot build the message.
+This script regenerates the bindings in place so the Python side speaks the fork's dialect.
+
+Three details that make this non-trivial, all handled here:
+
+1. **protoc/runtime version pairing.** `build/venv` pins protobuf<6 for kipy. Homebrew's
+   protoc (36.x) stamps a "requires runtime 7.x" gencode check into every file, which the
+   5.x runtime refuses to load. We therefore use the protoc bundled inside `grpcio-tools`,
+   which is version-matched to the installed runtime.
+2. **Descriptor-pool collisions.** Generating into a *separate* tree and putting it on
+   sys.path fails at import: protobuf's default descriptor pool rejects a second file
+   registered as `common/types/enums.proto`. The bindings must therefore *replace* kipy's,
+   not sit beside them.
+3. **Relative imports.** protoc emits absolute `from common.types import x_pb2`; kipy's
+   layout requires `from ...common.types import x_pb2`. We rewrite the import lines with the
+   correct dot-depth per file.
+
+A timestamped backup of the previous tree is kept next to the target, and `--verify` (default)
+imports the result and round-trips a message before declaring success.
+
+Known gap (deliberate)
+----------------------
+This regenerates the *generated* `_pb2.py` modules only. kipy also carries **hand-written**
+glue that enumerates types — `kipy/util/proto.py:_any_urls` and
+`kipy/board_types.py:_proto_to_object` — which no code generator touches. When the fork adds a
+board item type, reads of boards containing it fail with
+
+    NotImplementedError: Missing type mapping for type.googleapis.com/kiapi.board.types.X
+
+`ReferencePoint` (api/proto/board/board_types.proto:1554) is a live example: boards whose
+footprints contain `(point ...)` children break `get_footprints()`, while boards without them
+work, so it presents as intermittent. Note the failure is on the **read** path — it is easily
+misread as a failed write. `phicad/mcp/examples/session_lifecycle.py` installs a runtime shim
+(`install_fork_compat()`); prefer that over hand-editing site-packages.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as _dt
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[2]
+PROTO_SRC = REPO / "api" / "proto"
+VENV_PY = REPO / "build" / "venv" / "bin" / "python"
+
+# Messages/enum values that only exist in the fork; used by --verify to prove the regeneration
+# actually bought us something rather than reproducing the packaged bindings.
+FORK_MARKERS = (
+    ("common.commands.project_commands_pb2", "OpenDocument"),
+    ("common.commands.project_commands_pb2", "OpenDocumentResponse"),
+    ("common.commands.editor_commands_pb2", "RunAction"),
+)
+
+# kipy 0.8's *Python* layer imports symbols that upstream has since renamed or moved into
+# board_rules.proto (a file kipy 0.8 predates entirely). Regenerating from the fork's proto is
+# therefore correct but leaves those imports dangling, which breaks `import kipy` outright.
+# Re-export them under their old names/locations so the packaged Python layer keeps working.
+# Each entry: target module <- (old_name, module_supplying_it, new_name).
+# Everything upstream moved into the newer board_rules.proto, which kipy 0.8 predates.
+_RULES = (
+    "DrcErrorType", "CustomRuleConstraintType", "CustomRuleDisallowType", "CustomRuleLayerMode",
+    "BoardDesignRules", "CustomRule", "CustomRuleConstraint", "CustomRuleConstraintOption",
+    "CustomRuleDisallowSettings", "DrcExclusion", "DrcSeveritySetting", "MinimumConstraints",
+    "PredefinedSizes", "PresetDiffPairDimension", "PresetTrackWidth", "PresetViaDimension",
+    "SolderMaskPasteDefaults", "TeardropDefaults", "TeardropTargetParams",
+    "ViaProtectionDefaults",
+)
+
+COMPAT_ALIASES: dict[str, tuple[tuple[str, str, str], ...]] = {
+    "board/board_types_pb2.py": (
+        # Renamed upstream when pad/zone teardrops were split apart.
+        ("TeardropType", ".board_types_pb2", "ZoneTeardropType"),
+        ("TeardropSettings", ".board_types_pb2", "ZoneTeardropSettings"),
+    ),
+    "board/board_pb2.py": (
+        *((name, ".board_rules_pb2", name) for name in _RULES),
+        # Renamed as part of the same move.
+        ("TeardropTarget", ".board_rules_pb2", "TeardropTargetEntry"),
+    ),
+    "common/types/base_types_pb2.py": (
+        # Generalised to DrcMarker and moved to the board rules file.
+        ("RuleCheckerMarker", "...board.board_rules_pb2", "DrcMarker"),
+    ),
+    "common/commands/editor_commands_pb2.py": (
+        # Document lifecycle commands consolidated into project_commands.proto.
+        ("SaveDocument", ".project_commands_pb2", "SaveDocument"),
+    ),
+}
+
+COMPAT_BANNER = (
+    "\n\n# --- PhiCad compatibility shim (phicad/bin/regen-kipy-proto) ---------------------\n"
+    "# The fork's api/proto renamed/moved these; kipy 0.8's Python layer still imports the\n"
+    "# old names. Re-exported here so `import kipy` keeps working after regeneration.\n"
+)
+
+
+def _fail(msg: str) -> None:
+    print(f"error: {msg}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def _kipy_proto_dir(py: Path) -> Path:
+    """Locate the installed kipy/proto package using the venv's own interpreter."""
+    code = "import kipy.proto, pathlib; print(pathlib.Path(kipy.proto.__file__).parent)"
+    res = subprocess.run([str(py), "-c", code], capture_output=True, text=True)
+    if res.returncode != 0:
+        _fail(f"cannot locate kipy in {py}:\n{res.stderr.strip()}")
+    return Path(res.stdout.strip())
+
+
+def _ensure_grpc_tools(py: Path) -> None:
+    res = subprocess.run([str(py), "-c", "import grpc_tools.protoc"], capture_output=True)
+    if res.returncode == 0:
+        return
+    print("grpcio-tools missing — installing the runtime-matched protoc into build/venv")
+    # LLM proxy env breaks PyPI; strip it exactly like phicad/bin/phicad does.
+    import os
+
+    env = {k: v for k, v in os.environ.items()
+           if k.lower() not in {"https_proxy", "http_proxy", "all_proxy"}}
+    res = subprocess.run(
+        [str(py), "-m", "pip", "install", "--quiet", "grpcio-tools==1.68.*"],
+        env=env, capture_output=True, text=True)
+    if res.returncode != 0:
+        _fail(f"pip install grpcio-tools failed:\n{res.stdout}\n{res.stderr}")
+
+
+def _protobuf_runtime(py: Path) -> str:
+    res = subprocess.run(
+        [str(py), "-c", "import google.protobuf as p; print(p.__version__)"],
+        capture_output=True, text=True)
+    return res.stdout.strip() or "?"
+
+
+_IMPORT_RE = re.compile(r"^from ((?:common|board|schematic)[\w.]*) import (\w+_pb2)", re.M)
+
+
+def _relativize(text: str, depth: int) -> str:
+    """Rewrite protoc's absolute intra-tree imports to kipy's relative style."""
+    dots = "." * depth
+    return _IMPORT_RE.sub(lambda m: f"from {dots}{m.group(1)} import {m.group(2)}", text)
+
+
+def generate(target: Path, py: Path, staging: Path) -> list[Path]:
+    protos = sorted(PROTO_SRC.rglob("*.proto"))
+    if not protos:
+        _fail(f"no .proto files under {PROTO_SRC}")
+    staging.mkdir(parents=True, exist_ok=True)
+    cmd = [str(py), "-m", "grpc_tools.protoc", f"--proto_path={PROTO_SRC}",
+           f"--python_out={staging}", *[str(p) for p in protos]]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    if res.returncode != 0:
+        _fail(f"protoc failed:\n{res.stdout}\n{res.stderr}")
+
+    written: list[Path] = []
+    for src in sorted(staging.rglob("*_pb2.py")):
+        rel = src.relative_to(staging)
+        # kipy/proto/<rel>; depth of leading dots = number of path components above the file
+        depth = len(rel.parts)
+        text = _relativize(src.read_text(), depth)
+        if aliases := COMPAT_ALIASES.get(rel.as_posix()):
+            text += COMPAT_BANNER
+            for old, mod, new in aliases:
+                # Sibling-relative import: these files live in the same package directory.
+                text += f"from {mod} import {new} as {old}  # noqa: F401\n"
+                if old != new:
+                    text += f"# (upstream renamed {old} -> {new})\n"
+        dst = target / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_text(text)
+        written.append(dst)
+        # protoc does not emit package __init__.py files; kipy's layout needs them.
+        pkg = dst.parent
+        while pkg != target:
+            init = pkg / "__init__.py"
+            if not init.exists():
+                init.write_text("")
+            pkg = pkg.parent
+    return written
+
+
+def verify(py: Path) -> None:
+    """Import the regenerated bindings and round-trip a fork-only message."""
+    checks = "; ".join(
+        f"import kipy.proto.{mod} as m{i}; assert hasattr(m{i}, {name!r}), {name!r}"
+        for i, (mod, name) in enumerate(FORK_MARKERS))
+    code = (
+        "import kipy\n"
+        "from kipy.proto.common.commands.project_commands_pb2 import OpenDocument\n"
+        "from kipy.proto.common.types.base_types_pb2 import DOCTYPE_PCB\n"
+        f"{checks}\n"
+        "r = OpenDocument(); r.type = DOCTYPE_PCB; r.path = '/tmp/x.kicad_pcb'\n"
+        "assert OpenDocument.FromString(r.SerializeToString()).path == '/tmp/x.kicad_pcb'\n"
+        "from kipy.proto.common.types.enums_pb2 import KiCadObjectType\n"
+        "names = set(KiCadObjectType.keys())\n"
+        "print('round-trip OK; object types:', len(names))\n"
+    )
+    res = subprocess.run([str(py), "-c", code], capture_output=True, text=True)
+    if res.returncode != 0:
+        _fail("verification failed — the tree has been left in place, restore the backup "
+              f"printed above if needed:\n{res.stdout}\n{res.stderr}")
+    print(res.stdout.strip())
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--python", default=str(VENV_PY),
+                    help="interpreter whose kipy install is regenerated (default: build/venv)")
+    ap.add_argument("--no-verify", action="store_true", help="skip the import/round-trip check")
+    ap.add_argument("--no-backup", action="store_true", help="do not keep a backup copy")
+    args = ap.parse_args()
+
+    py = Path(args.python)
+    if not py.exists():
+        _fail(f"interpreter not found: {py}\nhint: phicad/bin/phicad venv")
+    if not PROTO_SRC.is_dir():
+        _fail(f"missing proto tree: {PROTO_SRC}")
+
+    target = _kipy_proto_dir(py)
+    print(f"repo        : {REPO}")
+    print(f"proto source: {PROTO_SRC}")
+    print(f"kipy target : {target}")
+    print(f"protobuf rt : {_protobuf_runtime(py)}")
+
+    _ensure_grpc_tools(py)
+
+    if not args.no_backup:
+        stamp = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+        backup = target.parent / f"proto.bak-{stamp}"
+        shutil.copytree(target, backup)
+        print(f"backup      : {backup}")
+
+    staging = Path("/tmp") / f"phicad-protogen-{_dt.datetime.now():%H%M%S}"
+    try:
+        written = generate(target, py, staging)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+    print(f"generated   : {len(written)} *_pb2.py into kipy/proto")
+
+    # Drop stale bytecode so the new sources actually load.
+    for pyc in target.rglob("__pycache__"):
+        shutil.rmtree(pyc, ignore_errors=True)
+
+    if not args.no_verify:
+        verify(py)
+    print("kipy bindings now match the fork's api/proto")
+
+
+if __name__ == "__main__":
+    main()

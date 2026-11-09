@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://couplet-physical-ai.github.io/PhiCad/schemas/design-ir.v1.json",
+  "title": "PhiCad synthesis design IR v1",
+  "description": "A circuit and placement-intent document accepted by phicad synth.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["project", "parts", "nets"],
+  "properties": {
+    "project": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "title": {"type": "string"},
+    "rev": {"type": "string"},
+    "company": {"type": "string"},
+    "board": {"$ref": "#/$defs/board"},
+    "rules": {"$ref": "#/$defs/rules"},
+    "parts": {
+      "type": "object",
+      "propertyNames": {"pattern": "^[A-Za-z]+[0-9]+$"},
+      "additionalProperties": {"$ref": "#/$defs/part"}
+    },
+    "nets": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          {"$ref": "#/$defs/pin"},
+          {
+            "type": "array",
+            "items": {"$ref": "#/$defs/pin"},
+            "uniqueItems": true
+          }
+        ]
+      }
+    },
+    "no_connect": {
+      "oneOf": [
+        {"$ref": "#/$defs/pin"},
+        {
+          "type": "array",
+          "items": {"$ref": "#/$defs/pin"},
+          "uniqueItems": true
+        }
+      ]
+    },
+    "placement": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/placement"}
+    }
+  },
+  "$defs": {
+    "pin": {
+      "type": "string",
+      "pattern": "^[A-Za-z]+[0-9]+\\.[^\\s.]+$"
+    },
+    "xy": {
+      "type": "array",
+      "prefixItems": [{"type": "number"}, {"type": "number"}],
+      "items": {"type": "number"},
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "part": {
+      "oneOf": [
+        {"type": "string", "minLength": 1},
+        {
+          "type": "object",
+          "additionalProperties": {
+            "type": ["string", "number", "integer", "boolean", "null"]
+          },
+          "required": ["footprint"],
+          "properties": {
+            "footprint": {"type": "string", "minLength": 1},
+            "symbol": {"type": "string"},
+            "value": {"type": "string"},
+            "lcsc": {"type": "string"},
+            "mpn": {"type": "string"},
+            "datasheet": {"type": "string"},
+            "description": {"type": "string"},
+            "dnp": {"type": "boolean"},
+            "exclude_from_bom": {"type": "boolean"},
+            "fields": {
+              "type": "object",
+              "additionalProperties": {"type": "string"}
+            }
+          }
+        }
+      ]
+    },
+    "board": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "layers": {"type": "integer", "enum": [1, 2, 4, 6, 8]},
+        "thickness": {"type": "number", "exclusiveMinimum": 0},
+        "outline": {"type": "string", "enum": ["auto", "rect"]},
+        "width": {"type": "number", "exclusiveMinimum": 0},
+        "height": {"type": "number", "exclusiveMinimum": 0},
+        "margin": {"type": "number", "minimum": 0},
+        "part_gap": {"type": ["number", "null"], "minimum": 0},
+        "chamfer": {"type": "number", "minimum": 0},
+        "corner": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {"chamfer": {"type": "number", "minimum": 0}}
+        },
+        "origin": {"$ref": "#/$defs/xy"},
+        "mounting_holes": {"type": "integer", "minimum": 0},
+        "mounting_hole_footprint": {"type": "string"},
+        "ground_net": {"type": "string"},
+        "pour_ground": {"type": "boolean"}
+      }
+    },
+    "rules": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "clearance": {"type": "number", "exclusiveMinimum": 0},
+        "track_width": {"type": "number", "exclusiveMinimum": 0},
+        "via_diameter": {"type": "number", "exclusiveMinimum": 0},
+        "via_drill": {"type": "number", "exclusiveMinimum": 0},
+        "via_diameter_min": {"type": "number", "exclusiveMinimum": 0},
+        "via_drill_min": {"type": "number", "exclusiveMinimum": 0},
+        "min_track_width": {"type": "number", "exclusiveMinimum": 0},
+        "min_hole": {"type": "number", "exclusiveMinimum": 0},
+        "edge_clearance": {"type": "number", "minimum": 0},
+        "track_widths": {
+          "type": "object",
+          "additionalProperties": {"type": "number", "exclusiveMinimum": 0}
+        }
+      }
+    },
+    "placement": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "at": {"$ref": "#/$defs/xy"},
+        "rot": {"type": "number"},
+        "side": {"type": "string", "enum": ["front", "back"]},
+        "near": {"type": "string"},
+        "within": {"type": "number", "minimum": 0},
+        "edge": {"type": "string", "enum": ["north", "south", "east", "west"]},
+        "group": {"type": "string"},
+        "lock": {"type": "boolean"}
+      }
+    }
+  }
+}

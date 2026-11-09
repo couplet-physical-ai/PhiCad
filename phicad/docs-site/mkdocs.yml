@@ -1,0 +1,54 @@
+site_name: PhiCad
+repo_url: https://github.com/couplet-physical-ai/PhiCad
+edit_uri: edit/master/phicad/docs-site/docs/
+theme:
+  name: material
+  logo: assets/phicad-logo.png
+  favicon: assets/favicon.png
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.superfences
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+extra:
+  canonical_base: https://couplet-physical-ai.github.io/PhiCad
+extra_css:
+  - assets/stylesheets/landing.css
+  - assets/stylesheets/feedback.css
+extra_javascript:
+  - assets/javascripts/landing.js
+  - assets/javascripts/feedback.js
+nav:
+  - Home: index.md
+  - Guides:
+      - Product tour: guides/product-tour.md
+      - Getting started: guides/getting-started.md
+      - The application: guides/the-application.md
+      - Driving PhiCad from a shell or an agent: guides/driving-phicad.md
+      - Feedback and privacy: guides/feedback.md
+  - Reference:
+      - Build: reference/build.md
+      - Testing: reference/testing.md
+      - Architecture: reference/architecture.md
+      - PhiCad Verify (CLI + MCP): reference/phicad-verify.md
+      - Git workflow: reference/git-workflow.md
+      - AI interfacing: reference/ai-interfacing.md
+      - Parts pipeline: reference/parts-pipeline.md
+      - Board synthesis: reference/synth.md
+      - Circuit JSON → native (apply): reference/circuit-json-apply.md
+      - Autoroute: reference/autoroute.md
+      - Layout swarm: reference/layout-swarm.md
+      - Model tiers & GPT-6 readiness: reference/model-tiers.md
+      - MCP tools: reference/mcp-tools.md
+      - MCP tool reference (generated): reference/mcp-tools-generated.md
+      - Look and feel: reference/look-and-feel.md
+      - Release-one readiness: reference/release-readiness.md
+      - Feedback data and privacy: reference/feedback-privacy.md
+      - Feedback administration: reference/feedback-admin.md

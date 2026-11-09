@@ -1,0 +1,21 @@
+{
+  "$comment": "One-time, content-pinned exceptions to the fork/upstream path boundary (phicad/git-workflow.md, 'Fork/upstream path boundary'). Each entry admits exactly one blob at one upstream path; any later change to that file is forbidden again. Read by phicad/bin/check_fork_boundary.py. Drop an entry once `phicad sync` brings upstream's own version of the fix.",
+  "exceptions": [
+    {
+      "path": "kicad/kicad_cli.cpp",
+      "blob": "7ea068dfd524e0729c196d7bb0f6b4e72d8b6903",
+      "pr": 121,
+      "reason": "kicad-cli segfaulted at exit (139) after `sch erc` on a schematic with no sibling .kicad_pro on Linux: the empty-path default project's PROJECT_FILE outlived the eeschema kiface's ERC_ITEM statics because PGM_KICAD::OnPgmExit() unloaded only GetOpenProjects(). The fix unloads that project too (11 lines).",
+      "authorized_by": "fork maintainer, 2026-09-22: one fix, not a general relaxation",
+      "upstream": "the buggy loop is upstream code (f938b2358d); to be submitted to gitlab.com/kicad/code/kicad and this entry removed when `phicad sync` returns upstream's version"
+    },
+    {
+      "path": "qa/tests/cli/test_sch.py",
+      "blob": "d9ea57c2963c651beb425e6bf8c9b3fc4c7baf9f",
+      "pr": 121,
+      "reason": "regression test for the fix above: test_sch_erc_standalone_schematic_exits_cleanly (fails with exit 139 on the previous binary, passes with the fix).",
+      "authorized_by": "fork maintainer, 2026-09-22: one fix, not a general relaxation",
+      "upstream": "travels with the kicad/kicad_cli.cpp fix"
+    }
+  ]
+}

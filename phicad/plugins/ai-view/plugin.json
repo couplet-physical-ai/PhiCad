@@ -1,0 +1,31 @@
+{
+    "$schema": "https://go.kicad.org/api/schemas/v1",
+    "identifier": "io.github.couplet-physical-ai.phicad.ai-view",
+    "name": "AI View",
+    "description": "Chat with an AI assistant that sees the live board. Runs through local phi and keeps each board project in Git with automatic snapshots.",
+    "runtime": {
+        "type": "exec"
+    },
+    "actions": [
+        {
+            "identifier": "open-ai-view",
+            "name": "Open AI View",
+            "description": "Open the AI assistant window for the current board",
+            "show-button": true,
+            "scopes": [ "pcb", "schematic" ],
+            "entrypoint": "ai_view.sh",
+            "icons-light": [ "icons/ai-view-24-light.png", "icons/ai-view-48-light.png" ],
+            "icons-dark": [ "icons/ai-view-24-dark.png", "icons/ai-view-48-dark.png" ]
+        },
+        {
+            "identifier": "new-project",
+            "name": "New AI Project",
+            "description": "Describe a board in plain words; get a placed, routed, DRC-clean project",
+            "show-button": true,
+            "scopes": [ "project_manager" ],
+            "entrypoint": "new_project.sh",
+            "icons-light": [ "icons/new-project-48-light.png", "icons/new-project-96-light.png" ],
+            "icons-dark": [ "icons/new-project-48-dark.png", "icons/new-project-96-dark.png" ]
+        }
+    ]
+}

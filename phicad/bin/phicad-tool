@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+#
+# phicad-tool — the shell front end for the phicad MCP tool surface.
+#
+# Every tool the MCP server exposes to a chat client is callable here with identical
+# semantics, because it IS the same python function: phicad/mcp/registry.py reads the live
+# FastMCP registry and phicad/mcp/phicad_tool.py invokes tool.fn in-process. Nothing is
+# re-implemented, so nothing can drift.
+#
+#   phicad-tool list [--json] [--section S] [--mutating]
+#   phicad-tool describe <tool>
+#   phicad-tool call <tool> [--arg key=value ...] [--json '{...}'] [--stdin] [--raw]
+#   phicad-tool docs > phicad/docs-site/docs/reference/mcp-tools-generated.md
+#   phicad-tool selftest [--full] | registry-test | doctor | serve
+#
+# Exit codes: 0 = the tool returned ok:true, 1 = ok:false, 2 = usage error.
+#
+# This script only resolves the interpreter and the environment; all logic lives in python.
+# The path resolution deliberately mirrors phicad/bin/phicad (PHICAD_BUILD, PHICAD_VENV,
+# PHICAD_KICAD_CLI) and adds PHICAD_MCP_VENV, because source tree, build tree and venvs
+# routinely live in different worktrees — the MCP server reads the same variables.
+
+set -euo pipefail
+
+# ---------------------------------------------------------------- environment
+
+SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+REPO="${PHICAD_REPO:-$SRC}"
+BUILD="${PHICAD_BUILD:-$REPO/build/mac-dev}"
+VENV="${PHICAD_VENV:-$REPO/build/venv}"
+MCP_VENV="${PHICAD_MCP_VENV:-$REPO/build/mcp-venv}"
+MCP_PY="$MCP_VENV/bin/python"
+CLI="${PHICAD_KICAD_CLI:-$BUILD/kicad/PhiCad.app/Contents/MacOS/kicad-cli}"
+DRIVER="$REPO/phicad/mcp/phicad_tool.py"
+
+die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 2; }
+
+[[ -f "$DRIVER" ]] || die "driver not found: $DRIVER (wrong PHICAD_REPO?)"
+
+if [[ ! -x "$MCP_PY" ]]; then
+  die "MCP venv python not found: $MCP_PY
+  create it with: phicad/mcp/setup.sh   (or set PHICAD_MCP_VENV)"
+fi
+
+# Export the resolved layout so the server module sees exactly what this script decided,
+# rather than re-deriving it from __file__ and landing on a different worktree's build tree.
+export PHICAD_REPO="$REPO"
+export PHICAD_BUILD="$BUILD"
+export PHICAD_VENV="$VENV"
+export PHICAD_KICAD_CLI="$CLI"
+
+# kicad-cli refuses to run outside an installed bundle without this.
+export KICAD_RUN_FROM_BUILD_DIR=1
+
+# Never let the LLM proxy leak into kicad-cli / venv children (see phicad/README.md).
+unset HTTPS_PROXY https_proxy ALL_PROXY all_proxy HTTP_PROXY http_proxy || true
+
+# A stale socket from an editor the user has open must not capture our session tools; the
+# server manages its own api-server child and sets KICAD_API_SOCKET for the scripts it runs.
+unset KICAD_API_SOCKET KICAD_API_TOKEN || true
+
+exec "$MCP_PY" "$DRIVER" "$@"
