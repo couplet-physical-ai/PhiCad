@@ -27,7 +27,7 @@ steps:
       - >-
         ci-runner v0.10.1 python-plain --src=. --repo="$${CI_REPO_NAME,,}" --python=3.13
         --pip=jsonschema --pip=ruff==0.16.6 --git-index --apt=gawk,libtk8.6
-        --run='git status --porcelain >/dev/null && phicad/bin/phicad check fast
+        --run='git config core.untrackedCache true && git update-index -q --refresh --untracked-cache; git status --porcelain >/dev/null && phicad/bin/phicad check fast
         && PYTHONPATH=phicad/plugins/ai-view python -m unittest discover -s phicad/plugins/ai-view -p "test_*.py" -v
         && python phicad/bin/check_schemas.py
         && ruff check --no-cache .
