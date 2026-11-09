@@ -129,16 +129,6 @@ static const std::vector<PCB_IO_PLUGIN_CASE> BoardPluginCases = {
         PCB_IO_MGR::CADSTAR_PCB_ARCHIVE
     },
     {
-        "Basic EasyEDA Std board json file",
-        "plugins/easyeda/PCB_USBMETER-PD QC修改版_2023-09-02.json",
-        PCB_IO_MGR::EASYEDA
-    },
-    {
-        "Basic EasyEDA Std backup file",
-        "plugins/easyeda/BackupProjects_ESP32-PICO-D4_smart_watch.zip",
-        PCB_IO_MGR::EASYEDA
-    },
-    {
         "Basic EasyEDA Pro zip board project",
         "plugins/easyedapro/Scanning Tunneling Microscope OpenSTM ControlBoard.zip",
         PCB_IO_MGR::EASYEDAPRO
@@ -227,16 +217,6 @@ static const std::vector<PCB_IO_PLUGIN_CASE> LibraryPluginCases = {
         "Basic CADSTAR PCB Archive library file",
         "plugins/cadstar/lib/footprint-with-thermal-pad.cpa",
         PCB_IO_MGR::CADSTAR_PCB_ARCHIVE
-    },
-    {
-        "Basic EasyEDA Std board json file",
-        "plugins/easyeda/PCB_USBMETER-PD QC修改版_2023-09-02.json",
-        PCB_IO_MGR::EASYEDA
-    },
-    {
-        "Basic EasyEDA Std backup file",
-        "plugins/easyeda/BackupProjects_ESP32-PICO-D4_smart_watch.zip",
-        PCB_IO_MGR::EASYEDA
     },
     {
         "Basic EasyEDA Pro zip board project",

@@ -12,7 +12,6 @@ install( DIRECTORY
     royalblue54L_feather
     simulation
     "sonde xilinx"
-    stickhub
     tiny_tapeout
     video
     vme-wren

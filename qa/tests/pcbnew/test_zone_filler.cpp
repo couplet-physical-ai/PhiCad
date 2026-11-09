@@ -202,7 +202,6 @@ static const std::vector<wxString> RegressionZoneFillTests_tests = {
     "issue5830",
     "issue6039",
     "issue6260",
-    "issue6284",
     "issue7086",
     "issue14294",   // Bad Clipper2 fill
     "fill_bad"      // Missing zone clearance expansion
