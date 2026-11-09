@@ -52,10 +52,11 @@
 #define URL_DOCUMENTATION wxS( "https://go.kicad.org/docs/" )
 
 
-/// URL to launch a new issue with pre-populated description
+/// URL to launch a new issue with pre-populated description.
+/// PhiCad bugs go to the fork's tracker, never upstream: upstream does not want
+/// fork reports, and the pre-filled version block says '-phicad' anyway.
 wxString COMMON_CONTROL::m_bugReportUrl =
-        wxS( "https://gitlab.com/kicad/code/kicad/-/issues/new?issuable_template=bare&issue"
-             "[description]=%s" );
+        wxS( "https://github.com/couplet-physical-ai/PhiCad/issues/new?body=%s" );
 
 
 /// Issue template to use for reporting bugs (this should not be translated)

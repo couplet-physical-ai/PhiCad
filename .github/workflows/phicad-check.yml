@@ -1,0 +1,172 @@
+# Gate the PhiCad fork layer (`phicad/`) on every push and pull request.
+#
+# This deliberately does NOT build KiCad: a cold C++ build is ~3.5 h and 16 GB, which no
+# per-PR gate can afford.  What it runs is `phicad check fast` -- the same command a
+# developer runs locally, so CI and the working copy cannot drift -- covering everything
+# that needs nothing but python3: byte-compilation of the fork layer, shell syntax, the
+# house style rules, the published JSON contracts, and the ai-view test suites.
+#
+# The suites that need a venv or the built kicad-cli (synth selftest, MCP tools/handshake) are
+# reported by `phicad check` as SKIP with the command that enables them; run the full
+# `phicad check` on a configured machine before a release cut.  The one exception is
+# phicad/mcp/test_registry.py: it needs fastmcp but NOT a built kicad-cli (it only inspects
+# tool shape and drives phicad-tool), so this job installs the MCP venv and runs its full set of
+# checks -- see the `mcp registry contract` step for the measured cost.
+#
+# Upstream KiCad's own CI lives in .gitlab-ci.yml and is untouched by this file.
+name: phicad check
+
+on:
+  push:
+    branches: [dev, master]
+  pull_request:
+
+# A force-push to a PR branch should cancel the superseded run, not queue behind it.
+concurrency:
+  group: phicad-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fork-layer:
+    name: fork layer (no C++ build)
+    runs-on: ubuntu-latest
+    # Was 15 for `phicad check fast` alone (~20 s of work).  The MCP registry stage adds the
+    # fastmcp install plus a suite whose wall time is 17 subprocess `import fastmcp`es --
+    # ~6 min together when measured locally, so 25 leaves headroom without letting a hung
+    # api-server-less suite burn a runner for an hour.
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # check_style.py asks git which files are tracked. The boundary step fetches the
+          # event's exact base commit separately, so the 2 GB repository stays shallow.
+          fetch-depth: 1
+
+      # Fork-only work belongs under phicad/, not mixed into upstream KiCad paths. Compare
+      # trees (not merge ancestry) so two shallow commit objects are sufficient, and pass the
+      # event's immutable base SHA rather than a branch name that can move during the run.
+      - name: fork/upstream path boundary
+        if: github.event_name == 'pull_request'
+        env:
+          PHICAD_BOUNDARY_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -eu
+          test -n "$PHICAD_BOUNDARY_BASE"
+          git fetch --no-tags --depth=1 origin "$PHICAD_BOUNDARY_BASE"
+          python3 phicad/bin/check_fork_boundary.py \
+            --base "$PHICAD_BOUNDARY_BASE" --head "$GITHUB_SHA" --committed-only
+
+      # A REAL 3.9 interpreter, not a parser flag.  phicad/pylib/*.py and four phicad/mcp
+      # workers are executed by `phicad/bin/phicad` with bare `python3`, which on a developer
+      # Mac is /usr/bin/python3 == 3.9.6.  Nothing verified that boundary before: every gate
+      # ran under 3.13, so a `match` statement or a runtime `dict[str, int]` in one of those
+      # files would have shipped green and crashed for every user.
+      #
+      # ORDER MATTERS: setup-python PREPENDS its interpreter to PATH, so 3.9 is installed
+      # FIRST and 3.13 second -- otherwise bare `python` in every later step would be 3.9,
+      # `pip install fastmcp` (needs >=3.10) would fail, and `phicad check fast` would silently
+      # gate the tree with the wrong interpreter.  The py_compile step never uses bare `python`;
+      # it addresses this one by its step output.
+      - uses: actions/setup-python@v5
+        id: py39
+        with:
+          python-version: '3.9'
+
+      # The interpreter every other step means when it says `python`.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      # jsonschema is the difference between "the schemas parse" and "the shipped examples
+      # actually satisfy them".  ruff is pinned because per-file-target-version -- the whole
+      # mechanism behind the 3.9/3.10 split in pyproject.toml -- is only enforced from 0.13;
+      # 0.9-0.12 accept the config and silently ignore it, and pyproject.toml's
+      # required-version turns that into a hard error rather than a gate that stopped gating.
+      - name: Install the schema validator and the linter
+        run: python -m pip install --quiet jsonschema 'ruff==0.16.6'
+
+      - name: phicad check fast
+        run: phicad/bin/phicad check fast
+
+      # Tk is absent on the runner, so the ai-view GUI suites skip themselves there. Prove
+      # the pure-logic modules still import and their tests run headless.
+      - name: ai-view logic suites (headless)
+        run: |
+          python -m unittest discover -s phicad/plugins/ai-view -p 'test_*.py' -v
+        env:
+          PYTHONPATH: phicad/plugins/ai-view
+
+      - name: Schema contracts (with validator available)
+        run: python phicad/bin/check_schemas.py
+
+      # ~2 s cold.  Config, rule set and the per-directory python-version split all live in
+      # the repo-root pyproject.toml, so `ruff check` with no arguments is the whole contract
+      # and a developer runs the identical command.  The rule set is exactly what is clean on
+      # the tree today (E, F, W): this gate landed without reformatting a single line, per the
+      # house rule.  Rules left off, with their violation counts, are listed in pyproject.toml.
+      - name: ruff (phicad/ only, config in pyproject.toml)
+        run: ruff check --no-cache .
+
+      # ~1 s.  The complement to ruff's parser check: ruff refuses 3.10 SYNTAX in these files,
+      # a real 3.9 byte-compile also refuses anything 3.9's own parser rejects, and neither can
+      # see a runtime-only 3.10-ism such as `isinstance(x, int | str)`.  This is the cheapest
+      # gate in the file and it guards the sharpest edge in the fork layer.
+      - name: python 3.9 boundary (files run by bare python3)
+        run: |
+          set -e
+          "${{ steps.py39.outputs.python-path }}" -VV
+          "${{ steps.py39.outputs.python-path }}" -m py_compile \
+            phicad/pylib/*.py \
+            phicad/mcp/doctor.py \
+            phicad/mcp/register.py \
+            phicad/mcp/sch_worker.py \
+            phicad/mcp/session_worker.py
+          echo "python 3.9 byte-compile clean"
+
+      # The checks that nobody ran until now.  The audit verified this suite needs NO C++
+      # build: with PHICAD_BUILD pointed at a nonexistent directory it still passes, because
+      # it only reads tool signatures/docstrings and drives phicad-tool.  Cost breakdown
+      # measured locally: ~2.5 min venv creation (fastmcp's dependency tree) + ~3.5 min for
+      # the suite, whose wall time is 17 phicad-tool subprocesses each paying a ~15 s
+      # `import fastmcp`.  continue-on-error is deliberately NOT set: a stale generated docs
+      # page or an untyped tool parameter is a real defect and should be red.
+      #
+      # What is NOT here and why: phicad/mcp/test_tools.py and test_handshake.py shell out to
+      # a built kicad-cli, so they cannot run in a no-build job at all.  Registering them as
+      # ctest targets (qa_mcp_tools, qa_mcp_handshake in qa/tests/mcp/CMakeLists.txt) is how
+      # they get run -- on a machine with a build tree, or a future second job that would have
+      # to pay the ~3.5 h / 16 GB cold C++ build first.
+
+      # A real venv at the default location, NOT a bare `pip install` into the runner python:
+      # the suite drives `phicad/bin/phicad-tool`, which hard-requires an executable at
+      # $PHICAD_MCP_VENV/bin/python (phicad/bin/phicad-tool:40) and dies with exit 2 otherwise.
+      # Installing fastmcp into the ambient interpreter leaves that path missing and 130 of the
+      # the suite fails on "MCP venv python not found" -- verified, not guessed.
+      - name: MCP venv (fastmcp)
+        run: |
+          python -m venv build/mcp-venv
+          build/mcp-venv/bin/python -m pip install --quiet --upgrade pip
+          build/mcp-venv/bin/python -m pip install --quiet -r phicad/mcp/requirements.txt
+
+      - name: mcp registry contract (no C++ build needed)
+        run: build/mcp-venv/bin/python phicad/mcp/test_registry.py
+        env:
+          # Proves the no-build claim in CI too, not just in the audit: if a future change
+          # makes this suite reach for kicad-cli, this path makes it fail loudly here rather
+          # than pass on a developer machine that happens to have a build tree.
+          PHICAD_BUILD: ${{ runner.temp }}/no-such-build-dir
+          # Keep every scratch path and export inside the runner's temp dir.
+          PHICAD_MCP_TEST_ROOT: ${{ runner.temp }}/mcp-scratch
+          PHICAD_MCP_OUT: ${{ runner.temp }}/mcp-out
+
+      # demos/ is fixture data for the suites above and must come back byte-identical; a suite
+      # that dirties a tracked demo board is a bug in the suite, and it is invisible unless
+      # something asks.
+      - name: demos/ still byte-clean
+        run: |
+          if [ -n "$(git status --porcelain demos/)" ]; then
+            echo "a suite modified tracked fixture data under demos/:"
+            git status --porcelain demos/
+            exit 1
+          fi
+          echo "demos/ clean"

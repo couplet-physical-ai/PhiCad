@@ -154,10 +154,11 @@ void S3D_PLUGIN_MANAGER::loadPlugins( void )
     if( wxGetEnv( wxT( "KICAD_RUN_FROM_BUILD_DIR" ), nullptr ) )
     {
     	// Exe will be at <build_dir>/pcbnew/pcbnew.app/Contents/MacOS/pcbnew for standalone
-    	// Plugin will be at <build_dir>/kicad/KiCad.app/Contents/PlugIns/3d
+    	// Plugin will be at <build_dir>/kicad/PhiCad.app/Contents/PlugIns/3d
     	fn.Assign( wxStandardPaths::Get().GetExecutablePath() );
 
-        if( fn.GetName() == wxT( "kicad" ) )
+        // PhiCad: the manager executable is named PhiCad (kicad kept as symlink)
+        if( fn.GetName().Lower() == wxT( "kicad" ) || fn.GetName().Lower() == wxT( "phicad" ) )
         {
             fn.AppendDir( wxT( ".." ) ); // Contents
         }
@@ -168,7 +169,7 @@ void S3D_PLUGIN_MANAGER::loadPlugins( void )
             fn.AppendDir( wxT( ".." ) ); // pcbnew
             fn.AppendDir( wxT( ".." ) ); // Build root
             fn.AppendDir( wxT( "kicad" ) );
-            fn.AppendDir( wxT( "KiCad.app" ) );
+            fn.AppendDir( wxT( "PhiCad.app" ) );
             fn.AppendDir( wxT( "Contents" ) );
         }
 

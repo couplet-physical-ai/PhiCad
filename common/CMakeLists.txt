@@ -168,6 +168,7 @@ set( KICOMMON_SRCS
     jobs/job_export_pcb_ps.cpp
     jobs/job_export_pcb_svg.cpp
     jobs/job_export_pcb_gencad.cpp
+    jobs/job_export_pcb_dsn.cpp
     jobs/job_export_pcb_3d.cpp
     jobs/job_export_sch_netlist.cpp
     jobs/job_export_sch_plot.cpp
@@ -184,6 +185,7 @@ set( KICOMMON_SRCS
     jobs/job_gerber_info.cpp
     jobs/job_import_utils.cpp
     jobs/job_pcb_import.cpp
+    jobs/job_pcb_import_ses.cpp
     jobs/job_sch_import.cpp
     jobs/job_pcb_render.cpp
     jobs/job_pcb_drc.cpp
@@ -458,6 +460,16 @@ string( REGEX MATCH
         KICAD_MAJOR_MINOR_PATCH_VERSION
         "${KICAD_VERSION}"
     )
+
+if( NOT KICAD_MAJOR_MINOR_PATCH_VERSION )
+    # KICAD_VERSION is `git describe` output, so a tag that is not semantic-versioned leaves the
+    # match empty -- and an empty SOVERSION is a hard error, not a warning.
+    string( REGEX MATCH
+            "([0-9]+)\\.([0-9]+)\\.([0-9]+)"
+            KICAD_MAJOR_MINOR_PATCH_VERSION
+            "${KICAD_SEMANTIC_VERSION}"
+        )
+endif()
 
 set_target_properties( kicommon PROPERTIES
     OUTPUT_NAME     kicommon

@@ -3908,7 +3908,15 @@ PARSER::PARSER( ELEM* aParent ) :
     generated_by_freeroute = false;
 
     host_cad = "KiCad's Pcbnew";
-    wxString msg = GetBuildVersion();
+    // The SEMANTIC version, not GetBuildVersion().  Build version is `git describe`, which on
+    // a fork carrying its own tags reads like `exo-v1-beta1-4-g1d887ffbda`.  Specctra
+    // consumers parse host_version to decide which KiCad dialect they are reading --
+    // Freerouting's heuristic silently falls back to a default profile when it cannot parse
+    // it, which is invisible in the DSN and shows up only as a worse route.
+    // Major.minor.patch only.  KICAD_SEMANTIC_VERSION carries a build suffix on an
+    // untagged tree ("10.99.0-unknown"), and a consumer matching on a version triple
+    // rejects the whole string rather than the suffix.
+    wxString msg = GetSemanticVersion().BeforeFirst( '-' );
     host_version = TO_UTF8(msg);
 }
 

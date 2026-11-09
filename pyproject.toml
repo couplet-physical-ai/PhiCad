@@ -1,0 +1,139 @@
+# Tool configuration ONLY -- this is deliberately NOT a python package.
+#
+# There is no [project] and no [build-system] table, and there must never be one.  Adding
+# either would make `pip install .` at the repo root try to package 2 GB of KiCad, and would
+# make uv/pdm/hatch treat every nested pyproject.toml (qa/tests/eeschema/) as a workspace
+# member.  The C++ build never reads this file: nothing in CMakeLists.txt or cmake/ mentions
+# pyproject.toml, and `phicad configure` / `phicad build` are unaffected.
+#
+# WHY IT EXISTS: ~19 000 lines of python live in phicad/ with no lint or import gate.
+# `phicad check` covered syntax (compileall), columns, tabs and trailing whitespace, but
+# nothing caught an unused import, an undefined name, a shadowed builtin, or -- the expensive
+# one -- python-3.10-only syntax in a file that has to run under the system 3.9.
+#
+# HOUSE RULE THIS RESPECTS: never reformat.  The rule set below is exactly the set that is
+# already clean on the tree today, so the gate can be turned on without touching a single
+# line of existing code.  Rules that would require a sweep are listed at the bottom with
+# their measured violation counts, ready to be enabled one PR at a time.  `ruff format` is
+# NOT configured and must not be run over this tree.
+
+[tool.ruff]
+# per-file-target-version is only enforced from 0.13; on 0.9-0.12 ruff silently parses the
+# py3.9 files as py3.10 and the whole point of the split disappears.  Failing loudly on an
+# old ruff is better than a gate that quietly stops gating.
+required-version = ">=0.13"
+
+# Matches phicad/bin/check_style.py:MAX_COLUMNS and _clang-format.  E501 is clean at 120
+# and would be 2928 violations at ruff's default 88 -- do not lower this.
+line-length = 120
+indent-width = 4
+
+# The fork layer only.  Upstream KiCad's python (qa/, pcbnew/python/, scripting/, tools/)
+# is not ours to lint and is thousands of violations deep; keeping the scope explicit means
+# a bare `ruff check` at the repo root does the right thing with no path arguments.
+include = ["phicad/**/*.py"]
+# `include` is not enough on its own: ruff resolves settings per file from the NEAREST
+# pyproject.toml, and thirdparty/sentry-native/external/benchmark ships its own [tool.ruff]
+# with a rule set of its own.  Those files must be excluded from traversal so a bare
+# `ruff check` at the repo root cannot be red because of vendored code.
+extend-exclude = ["thirdparty", "build", "phicad/docs-site/site", "qa/tests/eeschema"]
+
+# Default for phicad/: the MCP server and its tool modules run under build/mcp-venv
+# (python 3.13) and the synth/plugin code under build/venv (3.13), so modern syntax is fine.
+target-version = "py310"
+
+# THE SHARP EDGE.  `phicad/bin/phicad` invokes these with bare `python3` -- on macOS that is
+# /usr/bin/python3, currently 3.9.6 -- so a `match` statement, a bare `int | None` annotation
+# without `from __future__ import annotations`, or a runtime `dict[str, int]` in one of them
+# is a crash for every user, not a lint opinion.  Nothing verified this before: the files
+# were only ever exercised by a 3.13 interpreter in CI.
+#
+#   phicad/pylib/*.py                 `phicad check` gates + telemetry, run by `phicad`
+#   phicad/mcp/register.py            `phicad mcp register` (phicad/bin/phicad:359)
+#   phicad/mcp/doctor.py              `phicad mcp doctor`   (phicad/bin/phicad:361)
+#   phicad/mcp/sch_worker.py          spawned by tools_schematic.py under the automation venv
+#   phicad/mcp/session_worker.py      spawned by tools_session.py under the automation venv
+#
+# sch_worker/session_worker normally get build/venv's 3.13, but they are the files a user is
+# most likely to run by hand with plain `python3` while debugging, and the cost of keeping
+# them 3.9-clean is zero.  Paired with the /usr/bin/python3 -m py_compile step in
+# .github/workflows/phicad-check.yml, which is the check that catches *runtime* 3.10-isms
+# (a `dict[str,...]` default, an isinstance on a PEP 604 union) that a parser cannot see.
+[tool.ruff.per-file-target-version]
+"phicad/pylib/*.py" = "py39"
+"phicad/mcp/doctor.py" = "py39"
+"phicad/mcp/register.py" = "py39"
+"phicad/mcp/sch_worker.py" = "py39"
+"phicad/mcp/session_worker.py" = "py39"
+
+[tool.ruff.lint]
+# MEASURED, not aspirational.  Each of these produces zero violations on phicad/ as of this
+# commit (ruff 0.16.6), so the gate lands green and every future hit is a real regression:
+#   E   pycodestyle errors      2 (both E741, ignored below)
+#   F   pyflakes                8 (per-file-ignored below)
+#   W   pycodestyle warnings    0
+# Plus ruff's parser itself, which is what enforces per-file-target-version above.
+select = ["E", "F", "W"]
+
+# Rules deliberately LEFT OFF, with the violation count that buys them.  Turning any of these
+# on means a code sweep, and the house rule is that a sweep is its own PR -- never a drive-by
+# reformat bundled with a gate.  Counts from
+#   ruff check --isolated --line-length 120 --target-version py310 --select <code> phicad
+#   I     13   unsorted imports -- and CONTRIBUTING.md explicitly forbids reordering existing
+#              imports, so this one may never be appropriate here
+#   SIM   40   flake8-simplify
+#   RET    2   flake8-return
+#   UP   403   pyupgrade -- would rewrite the py3.9 files to 3.10 syntax; actively dangerous
+#   N      9   pep8-naming
+#   D    223   pydocstyle (the house rule is "a docstring on every tool", which
+#              test_registry.py already enforces more precisely than D can)
+#   ARG    7   unused arguments (mostly protocol/callback signatures)
+#   PTH   17   pathlib migrations
+#   RUF   63   ruff-specific
+#   EM   218   exception message must not be a literal
+#   PLR  489   pylint refactor
+#   PLW  128   pylint warnings
+#   PLC  113   pylint conventions
+#   EXE   62   shebang/exec-bit consistency (the phicad/ scripts are run via `phicad`, not
+#              executed directly, so most of these are false positives here)
+#   COM   42   trailing-comma style
+#   Q     43   quote style
+#   ISC   11   implicit string concatenation
+#   B      3   bugbear
+#   C4     3   comprehensions
+#   PIE    3   misc lints
+#   SLOT   3   __slots__
+#   TC     6   type-checking-only imports
+#   DTZ    1   naive datetime
+#   ASYNC  1
+# Zero-violation sets that add nothing today but are cheap insurance: FA (future annotations
+# -- 0 because every file that needs it already has it), T10 (stray breakpoint), PLE, YTT,
+# TID, INT, ICN, LOG, G, A.  FA is worth adding the day someone drops the __future__ import
+# from a py39 file; it is left out only to keep this first gate to one measured claim.
+ignore = [
+    # `l` as a loop variable in geometry/layer code, 7 sites.  Renaming them is churn in
+    # files another agent may be editing; the ambiguity is real but not a defect.
+    "E741",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Each of these is a REAL finding, left in place because this file's job is to install the
+# gate, not to change code -- and because three of the four files are owned by another agent
+# right now.  Delete the entry when the finding is fixed; that is the whole cleanup list.
+"phicad/mcp/examples/session_edit_track.py" = ["F401"]   # imports REPO_ROOT it never uses
+"phicad/mcp/examples/session_inspect.py" = ["F541"]      # 4 f-strings with no placeholders
+"phicad/mcp/session_worker.py" = ["F401", "F841"]        # unused TitleBlockInfo import; dead `layers`
+"phicad/pylib/gateway_models.py" = ["F401"]              # unused typing.Iterable
+"phicad/synth/cli.py" = ["F401"]
+"phicad/synth/emit.py" = ["F401"]
+"phicad/synth/place.py" = ["F401"]
+"phicad/synth/symbols.py" = ["F541"]
+"phicad/plugins/ai-view/web_view.py" = ["F401"]
+"phicad/demos/teensy-sensor-suite/generate_board.py" = ["F841"]
+"phicad/resources/branding/compose.py" = ["E401", "E702", "F401", "F541"]  # one-off asset script
+
+[tool.ruff.lint.isort]
+# Not selected (see the I001 note above), but configured so that if a future PR does the
+# import sweep, ruff already agrees with the layout the tree uses: phicad's own modules are
+# first-party even though there is no installed package.
+known-first-party = ["registry", "server", "phicad_tool"]

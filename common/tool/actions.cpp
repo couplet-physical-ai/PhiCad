@@ -1410,7 +1410,7 @@ TOOL_ACTION ACTIONS::help( TOOL_ACTION_ARGS()
 TOOL_ACTION ACTIONS::about( TOOL_ACTION_ARGS()
         .Name( "common.SuiteControl.about" )
         .Scope( AS_GLOBAL )
-        .FriendlyName( _( "About KiCad" ) )
+        .FriendlyName( _( "About PhiCad" ) )
         .UIId( wxID_ABOUT )
         .Icon( BITMAPS::about ) );
 
@@ -1440,7 +1440,7 @@ TOOL_ACTION ACTIONS::reportBug( TOOL_ACTION_ARGS()
         .Name( "common.SuiteControl.reportBug" )
         .Scope( AS_GLOBAL )
         .FriendlyName( _( "Report Bug" ) )
-        .Tooltip( _( "Report a problem with KiCad" ) )
+        .Tooltip( _( "Report a problem with PhiCad" ) )
         .Icon( BITMAPS::bug ) );
 
 TOOL_ACTION ACTIONS::ddAddLibrary( TOOL_ACTION_ARGS()

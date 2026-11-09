@@ -160,7 +160,7 @@ KICAD_MANAGER_FRAME::KICAD_MANAGER_FRAME( wxWindow* parent, const wxString& titl
     const int defaultLeftWinWidth = FromDIP( 250 );
 
     m_leftWinWidth = defaultLeftWinWidth; // Default value
-    m_aboutTitle = "KiCad";
+    m_aboutTitle = "PhiCad";
 
     // JPC: A very ugly hack to fix an issue on Linux: if the wxbase315u_xml_gcc_custom.so is
     // used **only** in PCM, it is not found in some cases at run time.
@@ -287,9 +287,9 @@ KICAD_MANAGER_FRAME::KICAD_MANAGER_FRAME( wxWindow* parent, const wxString& titl
     }
 
     if( ADVANCED_CFG::GetCfg().m_HideVersionFromTitle )
-        SetTitle( wxT( "KiCad" ) );
+        SetTitle( wxT( "PhiCad" ) );
     else
-        SetTitle( wxString( "KiCad " ) + GetMajorMinorVersion() );
+        SetTitle( wxString( "PhiCad " ) + GetMajorMinorVersion() );
 
     // Do not let the messages window have initial focus
     m_projectTreePane->SetFocus();
@@ -971,7 +971,7 @@ bool KICAD_MANAGER_FRAME::LoadProject( const wxFileName& aProjectFileName )
     {
         wxString head = Kiway().LocalHistory().GetHeadHash( Prj().GetProjectPath() );
 
-        KICAD_MESSAGE_DIALOG dlg( this, _( "KiCad found unsaved changes from your last session that are newer than "
+        KICAD_MESSAGE_DIALOG dlg( this, _( "PhiCad found unsaved changes from your last session that are newer than "
                                            "the saved project files." ),
                                   _( "Recover Unsaved Changes" ), wxYES_NO | wxICON_QUESTION );
 
@@ -1327,9 +1327,9 @@ void KICAD_MANAGER_FRAME::ProjectChanged()
     }
 
     if( ADVANCED_CFG::GetCfg().m_HideVersionFromTitle )
-        title += wxT( " \u2014 " ) + wxString( wxS( "KiCad" ) );
+        title += wxT( " \u2014 " ) + wxString( wxS( "PhiCad" ) );
     else
-        title += wxT( " \u2014 " ) + wxString( wxS( "KiCad " ) ) + GetMajorMinorVersion();
+        title += wxT( " \u2014 " ) + wxString( wxS( "PhiCad " ) ) + GetMajorMinorVersion();
 
     SetTitle( title );
 

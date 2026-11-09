@@ -40,6 +40,8 @@ public:
 private:
     void onThemeChanged( wxSysColourChangedEvent& aEvent );
     void onLauncherButtonClick( wxCommandEvent& aEvent );
+    void onPluginButtonClick( wxCommandEvent& aEvent );
+    void onPluginAvailabilityChanged( wxCommandEvent& aEvent );
 
     KICAD_MANAGER_FRAME* m_frame;
 
@@ -47,6 +49,11 @@ private:
     // handler for the button's asynchronous click event never has to dereference the event
     // object, which CreateLaunchers() may have already destroyed by the time the event arrives.
     std::unordered_map<int, const TOOL_ACTION*> m_actionForId;
+
+    // API plugin actions scoped "project_manager" get launcher tiles too; they are invoked by
+    // identifier through API_PLUGIN_MANAGER rather than through the tool framework, so they get
+    // their own id map (same never-reused-id discipline as m_actionForId, same reason).
+    std::unordered_map<int, wxString>           m_pluginActionForId;
 
     // Source of never-reused button ids so a stale click cannot alias a rebuilt button's id.
     int                                         m_nextLauncherId = wxID_HIGHEST + 1;

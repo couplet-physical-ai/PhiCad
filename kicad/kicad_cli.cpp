@@ -67,6 +67,7 @@
 #include "cli/command_pcb_export_gerbers.h"
 #include "cli/command_pcb_export_hpgl.h"
 #include "cli/command_pcb_export_gencad.h"
+#include "cli/command_pcb_export_dsn.h"
 #include "cli/command_pcb_export_ipc2581.h"
 #include "cli/command_pcb_export_ipcd356.h"
 #include "cli/command_pcb_export_odb.h"
@@ -82,6 +83,7 @@
 #include "cli/command_sch_export_plot.h"
 #include "cli/command_pcb_upgrade.h"
 #include "cli/command_pcb_import.h"
+#include "cli/command_pcb_import_ses.h"
 #include "cli/command_sch_import.h"
 #include "cli/command_import.h"
 #include "cli/command_fp.h"
@@ -150,6 +152,7 @@ static CLI::GIT_MERGEDRIVER_COMMAND      gitMergeDriverCmd{};
 static CLI::PCB_RENDER_COMMAND           pcbRenderCmd{};
 static CLI::PCB_UPGRADE_COMMAND          pcbUpgradeCmd{};
 static CLI::PCB_IMPORT_COMMAND           pcbImportCmd{};
+static CLI::PCB_IMPORT_SES_COMMAND       pcbImportSesCmd{};
 static CLI::SCH_IMPORT_COMMAND           schImportCmd{};
 static CLI::IMPORT_COMMAND               importCmd{};
 static CLI::EXPORT_BOM_COMMAND           exportPcbBomCmd{ KIWAY::FACE_PCB };
@@ -185,6 +188,7 @@ static CLI::PCB_EXPORT_STACKUP_COMMAND   exportPcbStackupCmd{};
 static CLI::PCB_EXPORT_GERBERS_COMMAND   exportPcbGerbersCmd{};
 static CLI::PCB_EXPORT_HPGL_COMMAND      exportPcbHpglCmd{};
 static CLI::PCB_EXPORT_GENCAD_COMMAND    exportPcbGencadCmd{};
+static CLI::PCB_EXPORT_DSN_COMMAND       exportPcbDsnCmd{};
 static CLI::PCB_EXPORT_IPC2581_COMMAND   exportPcbIpc2581Cmd{};
 static CLI::PCB_EXPORT_IPCD356_COMMAND   exportPcbIpcD356Cmd{};
 static CLI::PCB_EXPORT_ODB_COMMAND       exportPcbOdbCmd{};
@@ -267,6 +271,9 @@ static std::vector<COMMAND_ENTRY> commandStack = {
                 &pcbImportCmd
             },
             {
+                &pcbImportSesCmd
+            },
+            {
                 &pcbRenderCmd
             },
             {
@@ -275,6 +282,7 @@ static std::vector<COMMAND_ENTRY> commandStack = {
                     &exportPcbBomCmd,
                     &exportPcbBrepCmd,
                     &exportPcbDrillCmd,
+                    &exportPcbDsnCmd,
                     &exportPcbDxfCmd,
                     &exportPcbGerbersCmd,
                     &exportPcbHpglCmd,
@@ -675,6 +683,17 @@ void PGM_KICAD::OnPgmExit()
             if( PROJECT* project = m_settings_manager->GetProject( projectPath ) )
                 m_settings_manager->UnloadProject( project, false );
         }
+
+        // GetOpenProjects() skips the empty-path default project PGM_BASE::InitPgm() loads, but a
+        // standalone .kicad_sch/.kicad_pcb (no sibling .kicad_pro) is processed under exactly that
+        // project, so its PROJECT_FILE owns the kiface's nested ERC/DRC settings too. Left alone it
+        // is destroyed in ~SETTINGS_MANAGER during static teardown, after the kiface's severity
+        // tables are gone: on Linux `kicad-cli sch erc standalone.kicad_sch` wrote its report and
+        // then exited 139 (RC_ITEM::GetSettingsKey on a destroyed ERC_ITEM). Unloading it here
+        // reloads a fresh default project that no schematic has attached settings to, which is
+        // harmless to tear down late.
+        if( PROJECT* defaultProject = m_settings_manager->GetProject( wxEmptyString ) )
+            m_settings_manager->UnloadProject( defaultProject, false );
     }
 
     if( GetGitBackend() )

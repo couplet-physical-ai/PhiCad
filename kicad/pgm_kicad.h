@@ -49,6 +49,19 @@ public:
 
     void MacOpenFile( const wxString& aFileName ) override;
 
+    /**
+     * Handle an API OpenDocument request against the running project manager.
+     *
+     * This is installed on m_api_common_handler in OnPgmInit() so that an API client can ask an
+     * already-running GUI to load a project or open a board/schematic in its editor.  Without it,
+     * OpenDocument is only implemented by the headless `kicad-cli api-server`.
+     *
+     * Called on the wxWidgets main thread; see the comment on the implementation for why that is
+     * guaranteed and why it makes touching frames here safe.
+     */
+    HANDLER_RESULT<kiapi::common::commands::OpenDocumentResponse>
+    handleApiOpenDocument( const kiapi::common::commands::OpenDocument& aRequest );
+
     APP_SETTINGS_BASE* PgmSettings()       { return m_bm.m_config; }
 
     SEARCH_STACK&      SysSearch()         { return m_bm.m_search; }

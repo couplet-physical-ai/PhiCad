@@ -58,7 +58,7 @@ bool supportsMergetoolKind( KICAD_DIFF::DOC_KIND aKind )
 MERGETOOL_FRAME::MERGETOOL_FRAME( KIWAY* aKiway, wxWindow* aParent,
                                   const MERGETOOL_PATHS& aPaths ) :
         KIWAY_PLAYER( aKiway, aParent, FRAME_MERGETOOL,
-                      _( "KiCad Merge Tool" ), wxDefaultPosition,
+                      _( "PhiCad Merge Tool" ), wxDefaultPosition,
                       wxWindow::FromDIP( wxSize( 400, 120 ), nullptr ),
                       wxDEFAULT_FRAME_STYLE | wxFRAME_NO_TASKBAR,
                       wxT( "MergeToolFrame" ), unityScale ),
@@ -87,7 +87,7 @@ int MERGETOOL_FRAME::RunMerge()
                                            "Output extension must be .kicad_pcb, .kicad_sch, "
                                            ".kicad_sym, or .kicad_mod." ),
                                         m_paths.output ),
-                      _( "KiCad Merge Tool" ), wxOK | wxICON_ERROR, this );
+                      _( "PhiCad Merge Tool" ), wxOK | wxICON_ERROR, this );
         return CLI::EXIT_CODES::ERR_ARGS;
     }
 

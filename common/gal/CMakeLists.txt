@@ -105,6 +105,16 @@ string( REGEX MATCH
         "${KICAD_VERSION}"
     )
 
+if( NOT KICAD_MAJOR_MINOR_PATCH_VERSION )
+    # KICAD_VERSION is `git describe` output, so a tag that is not semantic-versioned leaves the
+    # match empty -- and an empty SOVERSION is a hard error, not a warning.
+    string( REGEX MATCH
+            "([0-9]+)\\.([0-9]+)\\.([0-9]+)"
+            KICAD_MAJOR_MINOR_PATCH_VERSION
+            "${KICAD_SEMANTIC_VERSION}"
+        )
+endif()
+
 set_target_properties( gal PROPERTIES
     OUTPUT_NAME     kigal
     SOVERSION      ${KICAD_MAJOR_MINOR_PATCH_VERSION}

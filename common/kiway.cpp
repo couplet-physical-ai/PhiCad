@@ -160,10 +160,10 @@ const wxString KIWAY::dso_search_path( FACE_T aFaceId )
     if( wxGetEnv( wxT( "KICAD_RUN_FROM_BUILD_DIR" ), nullptr ) )
     {
 #ifdef __WXMAC__
-        // On Mac, all of the kifaces are placed in the kicad.app bundle, even though the individual
-        // standalone binaries are placed in separate bundles before the make install step runs.
-        // So, we have to jump up to the kicad directory, then the PlugIns section of the kicad
-        // bundle.
+        // On Mac, all of the kifaces are placed in the PhiCad.app bundle, even though the
+        // individual standalone binaries are placed in separate bundles before the make install
+        // step runs. So, we have to jump up to the kicad directory, then the PlugIns section of
+        // the main bundle.
         fn = wxStandardPaths::Get().GetExecutablePath();
 
         fn.RemoveLastDir();
@@ -171,7 +171,7 @@ const wxString KIWAY::dso_search_path( FACE_T aFaceId )
         fn.RemoveLastDir();
         fn.RemoveLastDir();
         fn.AppendDir( wxT( "kicad" ) );
-        fn.AppendDir( wxT( "kicad.app" ) );
+        fn.AppendDir( wxT( "PhiCad.app" ) );   // PhiCad: rebranded main bundle
         fn.AppendDir( wxT( "Contents" ) );
         fn.AppendDir( wxT( "PlugIns" ) );
         fn.SetName( name );

@@ -114,7 +114,7 @@ void PANEL_PLUGIN_SETTINGS::validatePythonInterpreter()
 {
     if( !m_cbEnableApi->GetValue() )
     {
-        m_stPythonStatus->SetLabel( _( "KiCad API is not enabled; external Python plugins will "
+        m_stPythonStatus->SetLabel( _( "PhiCad API is not enabled; external Python plugins will "
                                        "not be available" ) );
         return;
     }

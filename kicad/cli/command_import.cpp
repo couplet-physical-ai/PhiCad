@@ -215,7 +215,11 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
         retCode = EXIT_CODES::ERR_INVALID_INPUT_FILE;
     }
 
-    if( retCode == EXIT_CODES::SUCCESS && project )
+    // Write the project whenever anything was imported, even if a later input was rejected:
+    // the imported board/schematic files exist on disk either way, and abandoning them without
+    // a project file just because input N failed leaves them orphaned. The error exit code is
+    // preserved so scripts still see the partial failure.
+    if( project && ( haveBoard || haveSch ) )
     {
         // The schematic handler already registered any sheets; link the board here.
         if( haveBoard )

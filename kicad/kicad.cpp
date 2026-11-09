@@ -30,6 +30,7 @@
 #include <wx/stdpaths.h>
 #include <wx/msgdlg.h>
 #include <wx/cmdline.h>
+#include <wx/thread.h>
 
 #include <api/api_server.h>
 #include <common.h>
@@ -37,6 +38,7 @@
 #include <file_history.h>
 #include <hotkeys_basic.h>
 #include <kiway.h>
+#include <lockfile.h>
 #include <macros.h>
 #include <paths.h>
 #include <richio.h>
@@ -98,7 +100,7 @@ PGM_KICAD& PgmTop()
 
 bool PGM_KICAD::OnPgmInit()
 {
-    App().SetAppDisplayName( wxT( "KiCad" ) );
+    App().SetAppDisplayName( wxT( "PhiCad" ) );
 
 #if defined(DEBUG)
     wxString absoluteArgv0 = wxStandardPaths::Get().GetExecutablePath();
@@ -277,6 +279,14 @@ bool PGM_KICAD::OnPgmInit()
     {
         m_api_server = std::make_unique<KICAD_API_SERVER>();
         m_api_common_handler = std::make_unique<API_HANDLER_COMMON>();
+
+        // Let API clients drive an already-running GUI instead of only the headless CLI server.
+        m_api_common_handler->SetOpenDocumentHandler(
+                [this]( const kiapi::common::commands::OpenDocument& aRequest )
+                {
+                    return handleApiOpenDocument( aRequest );
+                } );
+
         m_api_server->RegisterHandler( m_api_common_handler.get() );
     }
 
@@ -504,6 +514,231 @@ void PGM_KICAD::OnPgmExit()
     GetGitBackend()->Shutdown();
     delete GetGitBackend();
     SetGitBackend( nullptr );
+}
+
+
+HANDLER_RESULT<kiapi::common::commands::OpenDocumentResponse>
+PGM_KICAD::handleApiOpenDocument( const kiapi::common::commands::OpenDocument& aRequest )
+{
+    using namespace kiapi::common;
+
+    // THREADING: this runs on the wxWidgets main thread, so it is safe to create frames and load
+    // projects directly here.  The API transport already does the marshalling: KINNG's listener
+    // thread hands the request to KICAD_API_SERVER::onApiRequest(), which only calls QueueEvent()
+    // (thread-safe by design) and returns; the KINNG thread then blocks on a condition variable
+    // until Reply() is called.  The queued API_REQUEST_EVENT is dispatched by the main event loop,
+    // so handleApiEvent() -> ... -> this function all execute on the main thread, and the value we
+    // return is what unblocks the KINNG thread.  That is also why we must *not* defer the real work
+    // with CallAfter(): the response has to be fully populated before we return.  The cost of doing
+    // the work inline is that a slow load blocks this one client until it finishes.
+    if( !wxThread::IsMain() )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_UNKNOWN );
+        e.set_error_message( "internal error: OpenDocument dispatched off the main thread" );
+        return tl::unexpected( e );
+    }
+
+    types::DocumentType requestType = aRequest.type();
+
+    if( requestType != types::DOCTYPE_PROJECT && requestType != types::DOCTYPE_PCB
+        && requestType != types::DOCTYPE_SCHEMATIC )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_UNIMPLEMENTED );
+        e.set_error_message( "The project manager can only open PCB, schematic, and project "
+                             "document types" );
+        return tl::unexpected( e );
+    }
+
+    wxString inputPath = wxString::FromUTF8( aRequest.path() );
+
+    if( inputPath.IsEmpty() )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( "OpenDocument requires a non-empty path" );
+        return tl::unexpected( e );
+    }
+
+    // The client is a separate process, so its working directory is meaningless to us.  Resolving a
+    // relative path against the GUI's cwd would silently open the wrong file, so require absolute.
+    wxFileName docFile( inputPath );
+    docFile.Normalize( wxPATH_NORM_DOTS | wxPATH_NORM_TILDE | wxPATH_NORM_ABSOLUTE );
+
+    if( !wxFileName( inputPath ).IsAbsolute() )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( wxString::Format( wxS( "OpenDocument requires an absolute path; got '%s'" ),
+                                               inputPath ).ToStdString() );
+        return tl::unexpected( e );
+    }
+
+    if( !docFile.FileExists() )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( wxString::Format( wxS( "file does not exist: %s" ),
+                                               docFile.GetFullPath() ).ToStdString() );
+        return tl::unexpected( e );
+    }
+
+    KICAD_MANAGER_FRAME* managerFrame = dynamic_cast<KICAD_MANAGER_FRAME*>( App().GetTopWindow() );
+
+    if( !managerFrame )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_UNIMPLEMENTED );
+        e.set_error_message( "OpenDocument is only available in the project manager" );
+        return tl::unexpected( e );
+    }
+
+    // Every document the manager can open belongs to a project, so derive the sibling .kicad_pro.
+    // A bare board or schematic with no project file next to it is rejected rather than silently
+    // creating a project: the manager's editors refuse to run without an active project, and
+    // fabricating a .kicad_pro would write to the user's directory as a side effect of a read-only
+    // sounding request.  Such files can still be opened with a standalone pcbnew/eeschema.
+    wxFileName projectFile( docFile );
+    projectFile.SetExt( FILEEXT::ProjectFileExtension );
+
+    if( !projectFile.FileExists() )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( wxString::Format( wxS( "no project file '%s' found for '%s'; the project "
+                                                   "manager can only open documents that belong to a "
+                                                   "project" ),
+                                               projectFile.GetFullName(),
+                                               docFile.GetFullPath() ).ToStdString() );
+        return tl::unexpected( e );
+    }
+
+    // Loading a project tears down any open editors, so skip it when it is already the active one.
+    if( !managerFrame->IsProjectActive()
+        || managerFrame->GetProjectFileName() != projectFile.GetFullPath() )
+    {
+        // Switching projects closes the open editors, and an editor with unsaved changes puts up a
+        // modal "save your changes?" dialog.  That modal would be fatal here: because API requests
+        // are dispatched on the main thread, its nested event loop blocks the whole API server (even
+        // Ping) until a human clicks something, and an API client would simply hang.  So refuse the
+        // switch up front with an actionable error instead, leaving the user's work untouched.
+        for( unsigned i = 0; i < KIWAY_PLAYER_COUNT; ++i )
+        {
+            KIWAY_PLAYER* openPlayer = managerFrame->Kiway().Player( FRAME_T( i ), false );
+
+            if( openPlayer && openPlayer->IsContentModified() )
+            {
+                ApiResponseStatus e;
+                e.set_status( ApiStatusCode::AS_BUSY );
+                e.set_error_message(
+                        wxString::Format( wxS( "cannot switch to project '%s': '%s' has unsaved "
+                                               "changes; save or revert it first" ),
+                                          projectFile.GetFullName(),
+                                          openPlayer->GetTitle() ).ToStdString() );
+                return tl::unexpected( e );
+            }
+        }
+
+        // LoadProject() puts up a second modal ("already open by ...", AskOverrideLock) when the
+        // project is locked by another process, which would block the server for the same reason.
+        // Inspect() checks the lock without taking or disturbing it.
+        if( LOCKFILE lock = LOCKFILE::Inspect( projectFile.GetFullPath() ); !lock.Valid() )
+        {
+            ApiResponseStatus e;
+            e.set_status( ApiStatusCode::AS_BUSY );
+            e.set_error_message(
+                    wxString::Format( wxS( "project '%s' is already open by '%s' at '%s'" ),
+                                      projectFile.GetFullPath(),
+                                      lock.GetUsername(),
+                                      lock.GetHostname() ).ToStdString() );
+            return tl::unexpected( e );
+        }
+
+        if( !managerFrame->LoadProject( projectFile ) )
+        {
+            ApiResponseStatus e;
+            e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+            e.set_error_message( wxString::Format( wxS( "failed to load project '%s'" ),
+                                                   projectFile.GetFullPath() ).ToStdString() );
+            return tl::unexpected( e );
+        }
+    }
+
+    PROJECT&                  project = managerFrame->Prj();
+    commands::OpenDocumentResponse response;
+    types::DocumentSpecifier* docSpec = response.mutable_document();
+
+    docSpec->set_type( requestType );
+    docSpec->mutable_project()->set_name( project.GetProjectName().ToUTF8() );
+    docSpec->mutable_project()->set_path( project.GetProjectPath().ToUTF8() );
+
+    if( requestType == types::DOCTYPE_PROJECT )
+        return response;
+
+    // Mirror KICAD_MANAGER_CONTROL::ShowPlayer(): ask KIWAY for the editor, then hand it the file.
+    // Bringing the editor up also registers its own API handlers (API_HANDLER_PCB / _SCH) with the
+    // shared server, which is what makes follow-up calls like GetOpenDocuments work.
+    FRAME_T       playerType = ( requestType == types::DOCTYPE_PCB ) ? FRAME_PCB_EDITOR : FRAME_SCH;
+    KIWAY_PLAYER* player = nullptr;
+
+    try
+    {
+        player = managerFrame->Kiway().Player( playerType, true );
+    }
+    catch( const IO_ERROR& err )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_UNKNOWN );
+        e.set_error_message( wxString::Format( wxS( "editor failed to load: %s" ),
+                                               err.What() ).ToStdString() );
+        return tl::unexpected( e );
+    }
+
+    if( !player )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_UNKNOWN );
+        e.set_error_message( "editor could not be started" );
+        return tl::unexpected( e );
+    }
+
+    // A hidden frame might not have the document loaded yet.  Only load when the editor isn't
+    // already showing this exact file, so that we never discard the user's unsaved changes.
+    if( !player->IsVisible() || player->GetCurrentFileName() != docFile.GetFullPath() )
+    {
+        std::vector<wxString> fileList{ docFile.GetFullPath() };
+
+        if( !player->OpenProjectFiles( fileList ) )
+        {
+            ApiResponseStatus e;
+            e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+            e.set_error_message( wxString::Format( wxS( "editor failed to open '%s'" ),
+                                                   docFile.GetFullPath() ).ToStdString() );
+            return tl::unexpected( e );
+        }
+    }
+
+    if( !player->IsVisible() )
+        player->Show( true );
+
+    if( player->IsIconized() )
+        player->Iconize( false );
+
+    // Deliberately no Raise()/SetFocus() here, unlike ShowPlayer(): an API client driving a session
+    // the user is working in shouldn't steal focus from whatever they are currently doing.
+
+    if( requestType == types::DOCTYPE_PCB )
+    {
+        docSpec->set_board_filename( docFile.GetFullName().ToStdString() );
+    }
+    else
+    {
+        // The root sheet is what OpenProjectFiles() puts on screen.
+        docSpec->mutable_sheet_path()->set_path_human_readable( "/" );
+    }
+
+    return response;
 }
 
 

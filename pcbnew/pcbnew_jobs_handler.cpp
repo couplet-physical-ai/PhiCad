@@ -58,6 +58,7 @@
 #include <jobs/job_export_pcb_drill.h>
 #include <jobs/job_export_pcb_dxf.h>
 #include <jobs/job_export_pcb_gencad.h>
+#include <jobs/job_export_pcb_dsn.h>
 #include <jobs/job_export_pcb_pdf.h>
 #include <jobs/job_export_pcb_png.h>
 #include <jobs/job_export_pcb_pos.h>
@@ -69,6 +70,7 @@
 #include <jobs/job_pcb_render.h>
 #include <jobs/job_pcb_drc.h>
 #include <jobs/job_pcb_import.h>
+#include <jobs/job_pcb_import_ses.h>
 #include <jobs/job_import_utils.h>
 #include <jobs/job_pcb_upgrade.h>
 #include <eda_units.h>
@@ -136,6 +138,7 @@
 #include <paths.h>
 #include <streamwrapper.h>
 #include <tools/zone_filler_tool.h>
+#include <specctra_import_export/specctra.h>
 
 #include <locale_io.h>
 #include <confirm.h>
@@ -200,6 +203,17 @@ PCBNEW_JOBS_HANDLER::PCBNEW_JOBS_HANDLER( KIWAY* aKiway ) :
     Register( "pcb_import", std::bind( &PCBNEW_JOBS_HANDLER::JobImport, this, std::placeholders::_1 ),
               []( JOB* job, wxWindow* aParent ) -> bool
               {
+                  return true;
+              } );
+    Register( "import_ses", std::bind( &PCBNEW_JOBS_HANDLER::JobImportSes, this, std::placeholders::_1 ),
+              []( JOB* job, wxWindow* aParent ) -> bool
+              {
+                  return true;
+              } );
+    Register( "dsn", std::bind( &PCBNEW_JOBS_HANDLER::JobExportDsn, this, std::placeholders::_1 ),
+              []( JOB* job, wxWindow* aParent ) -> bool
+              {
+                  // The Specctra exporter has no options, so there is nothing to configure.
                   return true;
               } );
     Register( "svg", std::bind( &PCBNEW_JOBS_HANDLER::JobExportSvg, this, std::placeholders::_1 ),
@@ -2069,6 +2083,119 @@ int PCBNEW_JOBS_HANDLER::JobExportGencad( JOB* aJob )
 
     aJob->AddOutput( outPath );
     m_reporter->Report( _( "Successfully created genCAD file\n" ), RPT_SEVERITY_INFO );
+
+    return CLI::EXIT_CODES::OK;
+}
+
+
+int PCBNEW_JOBS_HANDLER::JobExportDsn( JOB* aJob )
+{
+    JOB_EXPORT_PCB_DSN* aDsnJob = dynamic_cast<JOB_EXPORT_PCB_DSN*>( aJob );
+
+    if( aDsnJob == nullptr )
+        return CLI::EXIT_CODES::ERR_UNKNOWN;
+
+    BOARD* brd = getBoard( aDsnJob->m_filename );
+
+    if( !brd )
+        return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
+
+    if( aDsnJob->GetConfiguredOutputPath().IsEmpty() )
+    {
+        wxFileName fn = brd->GetFileName();
+        fn.SetExt( FILEEXT::SpecctraDsnFileExtension );
+
+        aDsnJob->SetWorkingOutputPath( fn.GetFullName() );
+    }
+
+    wxString outPath = resolveJobOutputPath( aJob, brd );
+
+    if( !PATHS::EnsurePathExists( outPath, true ) )
+    {
+        m_reporter->Report( _( "Failed to create output directory\n" ), RPT_SEVERITY_ERROR );
+        return CLI::EXIT_CODES::ERR_INVALID_OUTPUT_CONFLICT;
+    }
+
+    try
+    {
+        // Temporarily flips back-side footprints and reverts them; the board is left as loaded.
+        DSN::ExportBoardToSpecctraFile( brd, outPath );
+    }
+    catch( const IO_ERROR& ioe )
+    {
+        m_reporter->Report( wxString::Format( _( "Failed to create Specctra DSN file '%s'.\n%s\n" ),
+                                              outPath, ioe.What() ),
+                            RPT_SEVERITY_ERROR );
+
+        return CLI::EXIT_CODES::ERR_UNKNOWN;
+    }
+
+    aJob->AddOutput( outPath );
+    m_reporter->Report( _( "Successfully created Specctra DSN file\n" ), RPT_SEVERITY_INFO );
+
+    return CLI::EXIT_CODES::OK;
+}
+
+
+int PCBNEW_JOBS_HANDLER::JobImportSes( JOB* aJob )
+{
+    JOB_PCB_IMPORT_SES* aSesJob = dynamic_cast<JOB_PCB_IMPORT_SES*>( aJob );
+
+    if( aSesJob == nullptr )
+        return CLI::EXIT_CODES::ERR_UNKNOWN;
+
+    if( !wxFileName::FileExists( aSesJob->m_sesFile ) )
+    {
+        m_reporter->Report( wxString::Format( _( "Session file '%s' does not exist\n" ), aSesJob->m_sesFile ),
+                            RPT_SEVERITY_ERROR );
+
+        return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
+    }
+
+    BOARD* brd = getBoard( aSesJob->m_filename );
+
+    if( !brd )
+        return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
+
+    // The session import stages every track and via it creates in a COMMIT, and BOARD_COMMIT
+    // reaches the board through a TOOL_MANAGER, so one is required even with no frame.
+    TOOL_MANAGER* toolManager = getToolManager( brd );
+    BOARD_COMMIT  commit( toolManager, true, false );
+
+    try
+    {
+        DSN::ImportSpecctraSession( brd, aSesJob->m_sesFile, commit );
+    }
+    catch( const IO_ERROR& ioe )
+    {
+        commit.Revert();
+
+        m_reporter->Report( wxString::Format( _( "Failed to import Specctra session '%s'.\n%s\n" ),
+                                              aSesJob->m_sesFile, ioe.What() ),
+                            RPT_SEVERITY_ERROR );
+
+        return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
+    }
+
+    // SKIP_UNDO: there is no undo stack outside the board editor.
+    commit.Push( _( "Import Specctra Session" ), SKIP_UNDO );
+
+    wxString outPath = aSesJob->m_outputFile.IsEmpty() ? aSesJob->m_filename : aSesJob->m_outputFile;
+
+    if( !PATHS::EnsurePathExists( outPath, true ) )
+    {
+        m_reporter->Report( _( "Failed to create output directory\n" ), RPT_SEVERITY_ERROR );
+        return CLI::EXIT_CODES::ERR_INVALID_OUTPUT_CONFLICT;
+    }
+
+    if( !BOARD_LOADER::SaveBoard( outPath, brd ) )
+    {
+        m_reporter->Report( _( "Failed to save board.\n" ), RPT_SEVERITY_ERROR );
+        return CLI::EXIT_CODES::ERR_INVALID_OUTPUT_CONFLICT;
+    }
+
+    aJob->AddOutput( outPath );
+    m_reporter->Report( wxString::Format( _( "Saved board to %s\n" ), outPath ), RPT_SEVERITY_ACTION );
 
     return CLI::EXIT_CODES::OK;
 }

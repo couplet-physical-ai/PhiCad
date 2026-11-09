@@ -352,6 +352,30 @@ def test_sch_export_erc( kitest: KiTestFixture,
     kitest.add_attachment( output_filepath )
 
 
+def test_sch_erc_standalone_schematic_exits_cleanly( kitest: KiTestFixture ):
+    """A schematic with no sibling .kicad_pro is checked under the default (empty-path) project.
+
+    That project's PROJECT_FILE used to outlive the eeschema kiface: it was skipped by the exit-time
+    unload and destroyed during static teardown, serializing ERC severities against ERC_ITEM tables
+    that were already gone. The report was written and the process then died with SIGSEGV (139) on
+    Linux. Only the exit code is under test here; the report content is covered above.
+    """
+    src = kitest.get_data_file_path( "cli/basic_test/basic_test.kicad_sch" )
+    work = kitest.get_output_path( "cli/standalone_erc/" )
+    standalone = work.joinpath( "standalone_copy.kicad_sch" )   # new stem: no .kicad_pro pairs with it
+    standalone.write_bytes( src.read_bytes() )
+    assert not standalone.with_suffix( ".kicad_pro" ).exists()
+
+    output_filepath = work.joinpath( "standalone_copy.erc.json" )
+    command = [utils.kicad_cli(), "sch", "erc", "--format=json", "-o", str( output_filepath ),
+               str( standalone )]
+
+    stdout, stderr, exitcode = utils.run_and_capture( command )
+
+    assert output_filepath.exists(), stderr
+    assert exitcode == 0, f"exit {exitcode} (139 = crashed at exit after writing the report)\n{stderr}"
+
+
 @pytest.mark.parametrize("test_file,output_fn,expected_headers,cli_args",
                             [
                              # Default fields include QUANTITY and DNP

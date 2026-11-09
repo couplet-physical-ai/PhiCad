@@ -39,6 +39,11 @@ public:
 #ifndef KICAD_USE_SENTRY
         m_sizerDataCollection->Show( false );
 #endif
+
+        // PhiCad ships its own updates; hide the upstream KiCad update opt-in the same
+        // way the preferences pane does (see panel_packages_and_updates.cpp).
+        m_cbAutoUpdateKiCad->SetValue( false );
+        m_cbAutoUpdateKiCad->Hide();
     };
 
     bool TransferDataFromWindow() override

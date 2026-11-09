@@ -17,15 +17,20 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <api/api_plugin_manager.h>
+#include <api/plugin_action_scope.h>
 #include <bitmaps.h>
 #include <bitmap_store.h>
 #include <kicad_manager_frame.h>
+#include <kiplatform/ui.h>
+#include <pgm_base.h>
 #include <kiplatform/policy.h>
 #include <policy_keys.h>
 #include <tool/tool_manager.h>
 #include <tools/kicad_manager_actions.h>
 #include <tools/kicad_manager_control.h>
 #include <widgets/bitmap_button.h>
+#include <wx/app.h>
 #include <wx/stattext.h>
 
 #include "panel_kicad_launcher.h"
@@ -38,6 +43,11 @@ PANEL_KICAD_LAUNCHER::PANEL_KICAD_LAUNCHER( wxWindow* aParent ) :
     CreateLaunchers();
 
     Bind( wxEVT_SYS_COLOUR_CHANGED, wxSysColourChangedEventHandler( PANEL_KICAD_LAUNCHER::onThemeChanged ), this );
+
+    // Plugins are scanned asynchronously at startup, so the project_manager-scoped actions
+    // usually do not exist yet when the launcher is first built.  Same pattern as
+    // PCB_EDIT_FRAME::onPluginAvailabilityChanged.
+    wxTheApp->Bind( EDA_EVT_PLUGIN_AVAILABILITY_CHANGED, &PANEL_KICAD_LAUNCHER::onPluginAvailabilityChanged, this );
 }
 
 
@@ -48,9 +58,13 @@ PANEL_KICAD_LAUNCHER::~PANEL_KICAD_LAUNCHER()
     for( wxWindow* window : m_scrolledWindow->GetChildren() )
     {
         if( dynamic_cast<BITMAP_BUTTON*>( window ) != nullptr )
+        {
             window->Unbind( wxEVT_BUTTON, &PANEL_KICAD_LAUNCHER::onLauncherButtonClick, this );
+            window->Unbind( wxEVT_BUTTON, &PANEL_KICAD_LAUNCHER::onPluginButtonClick, this );
+        }
     }
 
+    wxTheApp->Unbind( EDA_EVT_PLUGIN_AVAILABILITY_CHANGED, &PANEL_KICAD_LAUNCHER::onPluginAvailabilityChanged, this );
     Unbind( wxEVT_SYS_COLOUR_CHANGED, wxSysColourChangedEventHandler( PANEL_KICAD_LAUNCHER::onThemeChanged ), this );
 }
 
@@ -90,9 +104,10 @@ void PANEL_KICAD_LAUNCHER::CreateLaunchers()
 {
     m_frame->SetPcmButton( nullptr );
 
-    // Old buttons are about to be destroyed; drop the id lookup with them so a stale
+    // Old buttons are about to be destroyed; drop the id lookups with them so a stale
     // asynchronous click event can never be mapped to an action again.
     m_actionForId.clear();
+    m_pluginActionForId.clear();
 
     if( m_toolsSizer->GetEffectiveRowsCount() > 0 )
     {
@@ -187,7 +202,67 @@ void PANEL_KICAD_LAUNCHER::CreateLaunchers()
 
     m_frame->SetPcmButton( bb );
 
+    // API plugin actions scoped "project_manager" appear as launcher tiles after the built-in
+    // tools: the launcher is where a user goes to start work, so an action that creates or
+    // manages projects belongs here.  Follows EDA_DRAW_FRAME::AddApiPluginTools, but tiles
+    // instead of toolbar buttons, and invocation stays by identifier through the manager.
+    API_PLUGIN_MANAGER& pluginMgr = Pgm().GetPluginManager();
+
+    for( const PLUGIN_ACTION* action : pluginMgr.GetActionsForScope( PLUGIN_ACTION_SCOPE::PROJECT_MANAGER ) )
+    {
+        if( !action->show_button )
+            continue;
+
+        const wxBitmapBundle& icon = KIPLATFORM::UI::IsDarkTheme() && action->icon_dark.IsOk()
+                                             ? action->icon_dark
+                                             : action->icon_light;
+
+        int            id = m_nextLauncherId++;
+        BITMAP_BUTTON* btn = new BITMAP_BUTTON( m_scrolledWindow, id );
+        btn->SetBitmap( icon.IsOk() ? icon : KiBitmapBundle( BITMAPS::icon_pcm ) );
+        btn->SetPadding( 4 );
+        btn->SetToolTip( action->description );
+
+        m_scrolledWindow->SetFont( titleFont );
+        wxStaticText* label = new wxStaticText( m_scrolledWindow, wxID_ANY, action->name );
+        label->SetToolTip( action->description );
+
+        m_scrolledWindow->SetFont( helpFont );
+        wxStaticText* help = new wxStaticText( m_scrolledWindow, wxID_ANY, action->description );
+
+        btn->Bind( wxEVT_BUTTON, &PANEL_KICAD_LAUNCHER::onPluginButtonClick, this );
+        m_pluginActionForId[id] = action->identifier;
+
+        m_toolsSizer->Add( btn, 1, wxALIGN_CENTER_VERTICAL );
+
+        wxBoxSizer* textSizer = new wxBoxSizer( wxVERTICAL );
+        textSizer->Add( label );
+        textSizer->Add( help );
+
+        m_toolsSizer->Add( textSizer, 1, wxEXPAND | wxALIGN_CENTER_VERTICAL );
+    }
+
     Layout();
+}
+
+
+void PANEL_KICAD_LAUNCHER::onPluginButtonClick( wxCommandEvent& aEvent )
+{
+    // Same deferred-click hazard as onLauncherButtonClick: resolve by id, never by sender.
+    auto it = m_pluginActionForId.find( aEvent.GetId() );
+
+    if( it == m_pluginActionForId.end() )
+        return;
+
+    m_frame->SetFocus();
+    Pgm().GetPluginManager().InvokeAction( it->second );
+}
+
+
+void PANEL_KICAD_LAUNCHER::onPluginAvailabilityChanged( wxCommandEvent& aEvent )
+{
+    CreateLaunchers();
+    aEvent.Skip();
 }
 
 

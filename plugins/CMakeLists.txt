@@ -10,3 +10,6 @@ include_directories(
 )
 
 add_subdirectory( 3d )
+
+# PhiCad fork: ship the AI View plugin inside the application (phicad/ owns the logic).
+add_subdirectory( ${PROJECT_SOURCE_DIR}/phicad/plugins ${CMAKE_BINARY_DIR}/phicad-plugins )

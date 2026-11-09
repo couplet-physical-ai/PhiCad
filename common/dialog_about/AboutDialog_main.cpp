@@ -1016,7 +1016,9 @@ static void buildKicadAboutBanner( EDA_BASE_FRAME* aParent, ABOUT_APP_INFO& aInf
     aInfo.SetAppIcon( aParent->GetIcon() );
 
     /* Set title */
-    aInfo.SetAppName( Pgm().App().GetAppName() );
+    // PhiCad: prefer the display name ("PhiCad", "PhiCad Schematic Editor", ...)
+    // over the lower-case executable name.
+    aInfo.SetAppName( Pgm().App().GetAppDisplayName() );
 
     /* KiCad build version */
     wxString version;
@@ -1068,8 +1070,9 @@ static void buildKicadAboutBanner( EDA_BASE_FRAME* aParent, ABOUT_APP_INFO& aInf
                 << wxT( "</u></b>" ); // bold & underlined font for caption
 
     description << wxT( "<p>" )
-                << _( "The KiCad EDA Suite is a set of open source applications for the "
-                      "creation of electronic schematics and printed circuit boards." )
+                << _( "PhiCad is a fork of the KiCad EDA Suite, a set of open source "
+                      "applications for the creation of electronic schematics and printed "
+                      "circuit boards." )
                 << wxT( "</p>" );
 
     description << wxT( "</p>" );

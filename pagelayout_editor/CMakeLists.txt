@@ -67,7 +67,7 @@ if( APPLE )
         MACOSX_PACKAGE_LOCATION Resources
         )
     set( MACOSX_BUNDLE_ICON_FILE pagelayout_editor.icns )
-    set( MACOSX_BUNDLE_GUI_IDENTIFIER org.kicad.kicad )
+    set( MACOSX_BUNDLE_GUI_IDENTIFIER io.github.couplet-physical-ai.phicad )   # PhiCad: kept consistent; inert (MACOSX_BUNDLE_INFO_PLIST wins)
     set( MACOSX_BUNDLE_NAME pl_editor )
 endif()
 

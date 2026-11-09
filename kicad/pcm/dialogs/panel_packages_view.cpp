@@ -611,7 +611,7 @@ void PANEL_PACKAGES_VIEW::OnVersionActionClicked( wxCommandEvent& event )
     wxCHECK_RET( ver_it != package.versions.end(), "Could not find package version" );
 
     if( ( !ver_it->compatible || m_pcm->UsesSWIGRuntime( package, version ) )
-        && wxMessageBox( _( "This package version is incompatible with your KiCad version or "
+        && wxMessageBox( _( "This package version is incompatible with your PhiCad version or "
                             "platform. Are you sure you want to install it anyway?" ),
                          _( "Install package" ), wxICON_EXCLAMATION | wxYES_NO, wxGetTopLevelParent( this ) )
                    == wxNO )

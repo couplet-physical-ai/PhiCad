@@ -73,6 +73,7 @@ set( KICAD_CLI_SRCS
     cli/command_pcb_export_gerber.cpp
     cli/command_pcb_export_gerbers.cpp
     cli/command_pcb_export_gencad.cpp
+    cli/command_pcb_export_dsn.cpp
     cli/command_pcb_export_hpgl.cpp
     cli/command_pcb_export_ipc2581.cpp
     cli/command_pcb_export_ipcd356.cpp
@@ -86,6 +87,7 @@ set( KICAD_CLI_SRCS
     cli/command_pcb_export_svg.cpp
     cli/command_pcb_upgrade.cpp
     cli/command_pcb_import.cpp
+    cli/command_pcb_import_ses.cpp
     cli/command_sch_import.cpp
     cli/command_import.cpp
     cli/command_fp_export_svg.cpp
@@ -115,16 +117,20 @@ if( WIN32 )
 endif()
 
 if( APPLE )
-    set( KICAD_RESOURCES kicad.icns kicad_doc.icns )
-    set_source_files_properties( "${CMAKE_CURRENT_SOURCE_DIR}/kicad.icns" PROPERTIES
+    # PhiCad: brand the main bundle with the PhiCad icon; keep the KiCad doc
+    # icon for .kicad_pro documents.
+    set( PHICAD_ICNS "${CMAKE_SOURCE_DIR}/phicad/resources/macos/phicad.icns" )
+    set( KICAD_RESOURCES ${PHICAD_ICNS} kicad_doc.icns )
+    set_source_files_properties( "${PHICAD_ICNS}" PROPERTIES
         MACOSX_PACKAGE_LOCATION Resources
+        GENERATED TRUE
         )
     set_source_files_properties( "${CMAKE_CURRENT_SOURCE_DIR}/kicad_doc.icns"  PROPERTIES
         MACOSX_PACKAGE_LOCATION Resources
         )
-    set( MACOSX_BUNDLE_ICON_FILE kicad.icns )
-    set( MACOSX_BUNDLE_GUI_IDENTIFIER org.kicad.kicad )
-    set( MACOSX_BUNDLE_NAME kicad )
+    set( MACOSX_BUNDLE_ICON_FILE phicad.icns )
+    set( MACOSX_BUNDLE_GUI_IDENTIFIER io.github.couplet-physical-ai.phicad )
+    set( MACOSX_BUNDLE_NAME PhiCad )
 endif()
 
 add_executable( kicad WIN32 MACOSX_BUNDLE
@@ -170,6 +176,25 @@ endif()
 if( APPLE )
     set_target_properties( kicad PROPERTIES
         MACOSX_BUNDLE_INFO_PLIST ${PROJECT_BINARY_DIR}/kicad/Info.plist
+        # PhiCad: name the bundle + executable PhiCad (bundle dir becomes
+        # PhiCad.app, matching OSX_BUNDLE_MAIN in the top-level CMakeLists).
+        OUTPUT_NAME PhiCad
+        )
+
+    # PhiCad: compatibility symlink kicad -> PhiCad inside Contents/MacOS so
+    # scripts and tooling that exec "kicad" keep working.
+    add_custom_command( TARGET kicad POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E create_symlink "PhiCad" "kicad"
+        WORKING_DIRECTORY ${OSX_BUNDLE_BUILD_BIN_DIR}
+        )
+
+    # PhiCad: symlink Contents/SharedSupport -> build root so a Finder launch of
+    # the build-tree bundle (no KICAD_RUN_FROM_BUILD_DIR in its environment)
+    # resolves PATHS::GetStockDataPath() to the same staged data (resources/
+    # images.tar.gz, demos/, schemas/) that run-from-build-dir mode uses.
+    add_custom_command( TARGET kicad POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E create_symlink "../../.." "SharedSupport"
+        WORKING_DIRECTORY ${OSX_BUNDLE_BUILD_DIR}/Contents
         )
     target_link_libraries( kicad
         nlohmann_json
@@ -222,6 +247,17 @@ install( TARGETS kicad
     DESTINATION ${KICAD_BIN}
     COMPONENT binary
     )
+
+if( APPLE )
+    # PhiCad: the POST_BUILD Contents/SharedSupport symlink above is a
+    # build-tree convenience only (it points at the build root). Installing the
+    # bundle copies it verbatim, where it would resolve outside the installed
+    # .app and scatter KICAD_DATA content into the prefix's parent. Drop it in
+    # the staged bundle so the real SharedSupport/ directory can be installed.
+    install( CODE "
+        file( REMOVE \"\${CMAKE_INSTALL_PREFIX}/${KICAD_BIN}/PhiCad.app/Contents/SharedSupport\" )
+    " COMPONENT binary )
+endif()
 
 if( NOT APPLE )
     install( TARGETS kicad-cli

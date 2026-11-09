@@ -204,6 +204,36 @@ class TestImportLinkedProject:
         assert project.get( "sheets" ), "project sheets[] should list the imported schematic"
 
 
+@pytest.mark.skipif( get_pads_test_file() is None or get_eagle_test_file() is None,
+                     reason="Both PADS board and Eagle schematic test files are required" )
+class TestImportPartialFailure:
+    """A rejected input must not orphan the artifacts that did import"""
+
+    def test_partial_failure_still_writes_project( self, kitest: KiTestFixture ):
+        """Board + schematic import, then a rejected third input: error exit, but the
+        project file must still be written for the two artifacts that were produced."""
+        pads_file = get_pads_test_file()
+        eagle_file = get_eagle_test_file()
+        stem = get_project_stem( kitest, "partial", "board" )
+
+        # Third input: both slots are already filled, so it is rejected.
+        command = [ utils.kicad_cli(), "import", pads_file, eagle_file, eagle_file,
+                    "-o", str( stem ) ]
+
+        stdout, stderr, return_code = utils.run_and_capture( command )
+
+        assert return_code != 0
+        assert stem.with_suffix( ".kicad_pcb" ).exists()
+        assert stem.with_suffix( ".kicad_sch" ).exists()
+        assert stem.with_suffix( ".kicad_pro" ).exists(), \
+            "partial failure must still write the project for the imported artifacts"
+
+        with open( stem.with_suffix( ".kicad_pro" ), "r" ) as f:
+            project = json.load( f )
+
+        assert project.get( "boards" ), "project boards[] should list the imported board"
+
+
 @pytest.mark.skipif( get_pcad_test_files() == ( None, None ),
                      reason="P-CAD test files not available" )
 class TestImportPcadProject:
