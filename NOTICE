@@ -1,0 +1,48 @@
+PhiCad
+Copyright 2026 Exowatt, Inc.
+
+PhiCad was created at Exowatt, Inc. (https://exowatt.com). It is a fork of
+KiCad (https://www.kicad.org, source https://gitlab.com/kicad/code/kicad).
+PhiCad is not affiliated with or endorsed by the KiCad project.
+
+License
+-------
+KiCad is licensed under the GNU General Public License, version 3 or (at your
+option) any later version, with the file-specific exceptions listed in
+LICENSE.README. Exowatt's changes to KiCad sources and the PhiCad tooling under
+phicad/ are distributed under the same terms: GPL-3.0-or-later (see LICENSE).
+
+Upstream attribution
+--------------------
+KiCad is Copyright The KiCad Developers; see AUTHORS.txt for the authors,
+contributors, document writers and translators. Third-party components keep
+their own copyright and license notices, listed in LICENSE.README, including:
+
+- 3Dconnexion 3DxWare SDK headers/sources (thirdparty/3dxware_sdk),
+  Copyright (c) 2013-2021 3Dconnexion, distributed by 3Dconnexion under
+  GPL-3.0-or-later as stated in each file header.
+- zint, GIMP/GEGL portions (GPL-3.0-or-later); dxflib, potrace and others
+  (GPL-2.0-or-later); libwmf, planegcs (LGPL); eigen (MPL-2.0); nanosvg (zlib);
+  rapidcsv and KIBIS (BSD-3-Clause); expected (CC0); lemon (public domain);
+  upstream demo files in demos/ (CC BY-SA 4.0).
+
+Removed from this fork
+----------------------
+The following upstream files were removed because they are licensed for
+non-commercial use only (CC BY-NC-SA), which is incompatible with this
+repository's distribution terms: qa/data/pcbnew/plugins/easyeda/ (EasyEDA Std
+import fixtures), demos/stickhub/, qa/data/pcbnew/issue6284.kicad_pcb and the
+polygon fixtures derived from those boards.
+
+PhiCad artwork: the PhiCad mark (phicad/resources/branding/mark.png and
+phicad-mark.svg) and the application/document icons generated from it are
+Copyright Exowatt, Inc., distributed under the same terms as the rest of the
+tree. All other bitmaps are the upstream KiCad artwork (CC BY-SA 4.0, see
+resources/bitmaps_png/sources/CREDITS).
+
+Vendored in the phicad/ layer: Google model-viewer 4.3.1
+(phicad/plugins/ai-view/static/model-viewer.min.js, Apache-2.0; license text and
+provenance alongside it in THIRD-PARTY.md).
+
+PhiCad uses the tscircuit engine (MIT) and Circuit JSON (ISC), installed from
+npm by phicad/core; they are not vendored in this repository.

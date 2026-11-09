@@ -1,0 +1,21 @@
+# gitleaks configuration for PhiCad: default rules, plus an allowlist of reviewed false
+# positives. Each entry is a fixture or documentation example, not a credential.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "reviewed false positives (synthetic test canaries and upstream examples)"
+paths = [
+  # PhiCad: privacy self-tests use synthetic canary strings ("SECRET-PROMPT-...", "sk-CANARY...",
+  # an AKIA...ABCD placeholder) to prove they never reach logs or telemetry.
+  '''phicad/pylib/telemetry_selftest\.py$''',
+  '''phicad/pylib/test_setup_wizard\.py$''',
+  '''phicad/plugins/ai-view/test_live_chat\.py$''',
+  # Upstream KiCad: a struct field assignment (m_IP2581Bom.sections), not a key.
+  '''pcbnew/dialogs/dialog_export_2581\.cpp$''',
+  # Upstream Breakpad/Crashpad (vendored by sentry-native): protocol docs with placeholder keys,
+  # an example DSN and a test token constant.
+  '''thirdparty/sentry-native/external/breakpad/docs/sym_upload_v2_protocol\.md$''',
+  '''thirdparty/sentry-native/external/crashpad/example\.cpp$''',
+  '''thirdparty/sentry-native/external/crashpad/util/mach/child_port_server_test\.cc$''',
+]
