@@ -1,4 +1,4 @@
 # phicad MCP server — own venv (build/mcp-venv), deliberately separate from build/venv:
 # kicad-python pins protobuf<6 and would conflict with the MCP stack. This server never
 # imports kipy; it shells out to build/venv/bin/python.
-fastmcp==2.13.1
+fastmcp==4.1.8
