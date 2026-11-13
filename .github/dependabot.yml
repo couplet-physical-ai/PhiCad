@@ -1,0 +1,36 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: npm
+    directory: /phicad/core
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: pip
+    directory: /phicad/mcp
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: pip
+    directory: /phicad/docs-site
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: pip
+    directory: /qa/tests
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: uv
+    directory: /qa/tests/eeschema
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: pip
+    directory: /qa/data/pcbnew/wizards/qfp_wizard
+    schedule:
+      interval: weekly

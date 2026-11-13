@@ -74,7 +74,7 @@ merges expensive.
   (real command output, not "should work").
 - Target `dev`. Never target `master` — `master` only moves by `phicad release`.
 - **CI must be green.** `dev` is a protected branch requiring the `fork layer (no C++ build)`
-  check (`.woodpecker/ci.yaml` (Roadrunner)), so GitHub refuses the merge while it is red:
+  check (`.github/workflows/phicad-check.yml`), so GitHub refuses the merge while it is red:
   `the base branch policy prohibits the merge`. Run `phicad check` locally first — it is the
   same gate, so a local pass means the PR will pass. Force-pushes and deletion of `dev` are
   blocked for the same reason.
@@ -92,7 +92,7 @@ merges expensive.
 ## Fork/upstream path boundary
 
 A fork-only PR may change `phicad/**` and three narrow integration points:
-`AGENTS.md`, `pyproject.toml`, and `.woodpecker/ci.yaml` (Roadrunner). The required CI job
+`AGENTS.md`, `pyproject.toml`, and `.github/workflows/phicad-check.yml`. The required CI job
 compares the pull request tree with the event's exact base commit and rejects every other path.
 Both sides of a rename are checked, so moving an upstream-owned file under `phicad/` is not a
 way around the boundary.

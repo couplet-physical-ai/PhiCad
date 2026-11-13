@@ -139,7 +139,7 @@ rule set. Rules left off are listed in `pyproject.toml` with their measured viol
 particular would rewrite the 3.9 files to 3.10 syntax and must never be run here. `ruff format`
 is not configured and must not be used on this tree.
 
-CI: `.woodpecker/ci.yaml` on Roadrunner (Woodpecker + Dagger; `gh rr status`), step **fork-layer**, runs on every push
+CI: `.github/workflows/phicad-check.yml`, job **fork layer (no C++ build)**, runs on every push
 and PR: `phicad check fast`, the headless ai-view suites, the schema contracts, `ruff check`,
 the python-3.9 byte-compile, `phicad/mcp/test_registry.py`, and a `demos/` cleanliness check.
 It deliberately does not build C++ (a cold build is ~3.5 h / 16 GB), so the two MCP suites that

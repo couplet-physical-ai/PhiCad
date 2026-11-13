@@ -155,7 +155,7 @@ class ForkBoundaryContractTest(unittest.TestCase):
                 "phicad/owned.py": "value = 1\n",
                 "AGENTS.md": "fork instructions\n",
                 "pyproject.toml": "[tool.ruff]\n",
-                ".woodpecker/ci.yaml": "steps: []\n",
+                ".github/workflows/phicad-check.yml": "name: boundary\n",
             }
             for relative, content in allowed.items():
                 path = repo / relative
