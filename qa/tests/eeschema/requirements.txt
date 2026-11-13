@@ -2,7 +2,7 @@
 # Install with: pip install -r requirements.txt
 
 # HTTP Library Test Server
-fastapi>=0.100.0
+fastapi>=0.162.4
 pydantic>=2.0.0
 uvicorn[standard]>=0.23.0
 
