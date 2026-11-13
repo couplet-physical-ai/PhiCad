@@ -35,7 +35,7 @@ jobs:
     # api-server-less suite burn a runner for an hour.
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # check_style.py asks git which files are tracked. The boundary step fetches the
           # event's exact base commit separately, so the 2 GB repository stays shallow.
