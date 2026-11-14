@@ -79,13 +79,13 @@ jobs:
       # `pip install fastmcp` (needs >=3.10) would fail, and `phicad check fast` would silently
       # gate the tree with the wrong interpreter.  The py_compile step never uses bare `python`;
       # it addresses this one by its step output.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         id: py39
         with:
           python-version: '3.9'
 
       # The interpreter every other step means when it says `python`.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
 
